@@ -90,7 +90,7 @@ struct MessagePresentationBlock: View {
                 .padding(.leading, 14).padding(.vertical, 6)
                 .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 2).fill(Color.accentColor.opacity(0.6)).frame(width: 3) }
                 .accessibilityIdentifier("reply-quote")
-        case .prose: replyInline(block.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+        case .prose: SelectableReplyText(text: block.text).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

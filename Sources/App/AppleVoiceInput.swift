@@ -37,9 +37,23 @@ import HermesCore
             }
             observingInterruptions = true
             for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification, AVAudioSession.mediaServicesWereResetNotification] {
-                observers.append(center.addObserver(forName: name, object: capture.audioSession, queue: .main) { [weak self] _ in
+                observers.append(center.addObserver(forName: name, object: capture.audioSession, queue: .main) { [weak self] note in
+                    let reason = (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue
+                    let interruption = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue
+                    // Copy only numeric metadata before crossing to the actor.
+                    let source = name == AVAudioSession.routeChangeNotification ? 1 : (name == AVAudioSession.interruptionNotification ? 2 : 3)
                     Task { @MainActor [weak self] in
                         guard let self, self.token == generation, self.observingInterruptions else { return }
+                        let code = Int(source == 1 ? (reason ?? 0) : (interruption ?? 0))
+                        DiagnosticLog.shared.record(.voiceAudioEvent, frames: source, code: code)
+                        // setCategory/setActive emits category/route configuration
+                        // notifications too; these are not loss of capture input.
+                        if source == 1 {
+                            guard reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue || reason == AVAudioSession.RouteChangeReason.noSuitableRouteForCategory.rawValue else { return }
+                        } else if source == 2 {
+                            guard interruption == AVAudioSession.InterruptionType.began.rawValue else { return }
+                        }
+                        DiagnosticLog.shared.record(.voiceCancellation, frames: source, code: code)
                         receive(.interrupted)
                     }
                 })
