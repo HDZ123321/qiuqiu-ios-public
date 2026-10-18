@@ -43,7 +43,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertEqual(tableCopies.count, 2)
         tableCopies.element(boundBy: 1).tap(); XCTAssertTrue(app.buttons["已复制表格"].exists)
         screenshot("typography-wide-table-copy")
-        let tableScroll = app.scrollViews["reply-table-horizontal"]
+        let tableScroll = app.scrollViews.matching(identifier: "reply-table-horizontal").element(boundBy: 1)
         XCTAssertTrue(tableScroll.exists)
         tableScroll.swipeLeft(); tableScroll.swipeLeft()
         let lastCell = app.staticTexts["End of wide table"]
@@ -106,22 +106,18 @@ final class CompanionUITests: XCTestCase {
     func testReplyFormattingLargeTextAndApprovalConfirmation() {
         let app = XCUIApplication(); app.launchArguments = ["--ui-replies", "--ui-formatting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]; app.launch()
         app.buttons["跟我说"].tap()
-        app.swipeDown(); app.swipeDown()
-        XCTAssertTrue(app.descendants(matching: .any)["reply-table"].waitForExistence(timeout: 5)); screenshot("reply-table-quote-accessibility-text")
-        // Scroll incrementally inside the message viewport; a full-screen swipe
-        // skips the code header at accessibility sizes and lands in long prose.
-        for _ in 0..<3 {
-            if app.buttons["复制代码"].isHittable { break }
-            app.swipeDown(velocity: .slow)
+        let reading = app.scrollViews["message-reading-scroll"]
+        for _ in 0..<12 {
+            if app.buttons["复制表格"].isHittable { break }
+            reading.swipeDown(velocity: .slow)
         }
-        if !app.buttons["复制代码"].isHittable {
-            for _ in 0..<40 {
-                if app.buttons["复制代码"].isHittable { break }
-                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.60))
-                start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.48)))
-            }
+        XCTAssertTrue(app.buttons["复制表格"].waitForExistence(timeout: 5)); screenshot("reply-table-quote-accessibility-text")
+        let copyCode = app.buttons["reply-code-copy"]
+        for _ in 0..<16 {
+            if copyCode.isHittable { break }
+            reading.swipeUp(velocity: .slow)
         }
-        XCTAssertTrue(app.buttons["复制代码"].isHittable); app.buttons["复制代码"].tap(); screenshot("reply-long-code-dynamic-type")
+        XCTAssertTrue(copyCode.isHittable); copyCode.tap(); screenshot("reply-long-code-dynamic-type")
         app.terminate()
         app.launchArguments = ["--ui-replies", "--ui-approval", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]; app.launch()
         app.tabBars.buttons["任务"].tap()
