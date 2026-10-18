@@ -15,7 +15,7 @@ final class RunHistoryTests: XCTestCase {
         XCTAssertEqual(loaded.count, 1)
         XCTAssertEqual(loaded[0].run.runID, "run_1")
         XCTAssertEqual(loaded[0].run.output, "已完成的结果")
-        XCTAssertEqual(loaded[0].source, RunHistoryStore.Entry.Source.local)
+        XCTAssertEqual(loaded[0].source, RunHistoryStore.Source.local)
     }
 
     func testActiveNonTerminalRunIsNeverArchived() throws {

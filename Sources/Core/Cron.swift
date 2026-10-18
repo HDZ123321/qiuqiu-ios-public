@@ -16,7 +16,7 @@ public struct CronJob: Decodable, Identifiable, Equatable {
     public let latest_execution: ExecutionSnapshot?
     // Sanitized server timeline: status and timestamps only. The native error
     // text, process identity and run output are never sent to this client.
-    public struct ExecutionSnapshot: Decodable, Equatable {
+    public struct ExecutionSnapshot: Codable, Equatable {
         public let id: String?
         public let status: String?
         public let claimed_at: String?
