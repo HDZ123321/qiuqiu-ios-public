@@ -1,0 +1,11 @@
+name: Session regression red-green
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  session:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --filter ServerSessionTests

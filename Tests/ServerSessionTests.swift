@@ -3,6 +3,24 @@ import XCTest
 @testable import HermesTransport
 
 final class ServerSessionTests: XCTestCase {
+    func testRealTitleAndRefreshMergePreserveLocalIdentityEditsAndDeduplicate() throws {
+        let metadata = try JSONDecoder().decode(ServerSessionItem.self,from:Data(#"{"session_id":"s_a","created_seq":1,"run_count":1,"history":"explicit_fetch","title":"Native original","title_source":"native"}"#.utf8))
+        let page = try JSONDecoder().decode(ServerSessionMessages.self,from:Data(#"{"session_id":"s_a","history":"stored_text","items":[{"id":"1","role":"user","content":"question"}],"next_offset":null}"#.utf8))
+        let newer = try JSONDecoder().decode(ServerSessionMessages.self,from:Data(#"{"session_id":"s_a","history":"stored_text","items":[{"id":"1","role":"user","content":"question"},{"id":"2","role":"assistant","content":"latest stored answer"}],"next_offset":null}"#.utf8))
+        var chats:[Chat]=[]
+        let id = try ServerSessionImport.open(metadata,scope:"a",chats:&chats,pages:[page])
+        XCTAssertEqual(chats[0].title,"Native original")
+        let mid = chats[0].messages[0].id
+        chats[0].customTitle="My edited title"
+        chats[0].messages[0].content="My edited message"
+        XCTAssertEqual(try ServerSessionImport.open(metadata,scope:"a",chats:&chats,pages:[newer]),id)
+        XCTAssertEqual(chats.count,1)
+        XCTAssertEqual(chats[0].title,"My edited title")
+        XCTAssertEqual(chats[0].messages.map(\.content),["My edited message","latest stored answer"])
+        XCTAssertEqual(chats[0].messages[0].id,mid)
+        _ = try ServerSessionImport.open(metadata,scope:"a",chats:&chats,pages:[newer])
+        XCTAssertEqual(chats[0].messages.count,2)
+    }
     func testImportIsIdempotentAndNeverOverwritesLocalEdits() throws {
         let metadata = try JSONDecoder().decode(ServerSessionItem.self, from: Data(#"{"session_id":"run_owned","created_seq":1,"run_count":2,"history":"explicit_fetch"}"#.utf8))
         var chats: [Chat] = []
