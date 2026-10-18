@@ -167,6 +167,8 @@ struct TasksView: View {
 struct RunCard: View {
     @EnvironmentObject private var store: ChatStore
     @State private var stopKey: String?
+    @State private var approvalIntent: ApprovalIntent?
+    private struct ApprovalIntent { let key: String; let requestID: String; let choice: String }
     var body: some View {
         if let run = store.activeRun, !run.terminal {
             VStack(alignment: .leading, spacing: 12) {
@@ -176,10 +178,11 @@ struct RunCard: View {
                 if let approval = run.approval, run.status == "waiting_for_approval" {
                     Text(approval.command ?? approval.description ?? "服务器请求批准").font(.system(.body, design: .monospaced)).textSelection(.enabled)
                     Text("请阅读操作后决定，仅对这一次请求有效。").font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        if approval.request_id != nil && approval.choices?.contains("deny") == true { Button("拒绝", role: .destructive) { store.approve("deny") } }
-                        if approval.request_id != nil && approval.choices?.contains("once") == true { Button("仅批准本次") { store.approve("once") } }
-                    }.buttonStyle(.bordered).disabled(store.approvalBusy)
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let requestID = approval.request_id, approval.choices?.contains("deny") == true { Button("拒绝", role: .destructive) { approvalIntent = ApprovalIntent(key: run.key, requestID: requestID, choice: "deny") }.accessibilityIdentifier("approval-deny") }
+                        if let requestID = approval.request_id, approval.choices?.contains("once") == true { Button("仅批准本次…") { approvalIntent = ApprovalIntent(key: run.key, requestID: requestID, choice: "once") }.accessibilityIdentifier("approval-once") }
+                    }.buttonStyle(.bordered).disabled(store.approvalBusy || !store.connected)
+                    if approval.request_id == nil { Text("服务器未提供精确请求编号，不能安全作答。请等待服务端更新状态。").font(.caption) }
                 }
                 if !store.toolProgress.isEmpty { Text(store.toolProgress).font(.caption).textSelection(.enabled) }
                 if run.stopRequested { Text("停止请求待确认；执行器仍可能运行。").font(.caption).foregroundStyle(.orange) }
@@ -189,6 +192,12 @@ struct RunCard: View {
                     Button("停止…", role: .destructive) { stopKey = run.key; DiagnosticLog.shared.record(.stopPrompt) }
                 }.buttonStyle(.bordered)
             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+            .confirmationDialog("确认回答这一次操作请求？", isPresented: Binding(get: { approvalIntent != nil }, set: { if !$0 { approvalIntent = nil } }), titleVisibility: .visible) {
+                Button(approvalIntent?.choice == "once" ? "确认仅批准本次" : "确认拒绝", role: approvalIntent?.choice == "deny" ? .destructive : nil) {
+                    if let intent = approvalIntent { store.approve(intent.choice, expectedKey: intent.key, expectedRequestID: intent.requestID) }; approvalIntent = nil
+                }
+                Button("取消", role: .cancel) { approvalIntent = nil }
+            } message: { Text("不允许会话级或永久授权。若服务器请求已变化，本次回答将拒绝发送。") }
             .confirmationDialog("停止当前服务器任务？", isPresented: Binding(get: { stopKey != nil }, set: { if !$0 { stopKey = nil } }), titleVisibility: .visible) {
                 Button("确认停止", role: .destructive) { if stopKey == store.activeRun?.key { store.cancel() }; stopKey = nil }
                 Button("继续等待", role: .cancel) { stopKey = nil; DiagnosticLog.shared.record(.stopDismissed) }
@@ -307,6 +316,9 @@ struct RunHistoryView: View {
                                 if message.interrupted == true { Text("未完成的回复").font(.caption).foregroundStyle(.orange) }
                                 if message.content.isEmpty { Text(store.current?.run?.terminal == false ? "等待球球回复…" : "未收到回复（已停止或请求失败）").foregroundStyle(.secondary) }
                                 else { MarkdownMessage(content: message.content) }
+                                if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
+                                    ReplyArtifactsView(runID: runID, settings: store.settings)
+                                }
                             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))
                         }
                         Color.clear.frame(height: 1).id("bottom")
@@ -365,6 +377,8 @@ struct RunHistoryView: View {
 
 struct MarkdownMessage: View {
     let content: String
+    @State private var externalURL: URL?
+    @Environment(\.openURL) private var openURL
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(MessageBlock.parse(content)) { block in
@@ -373,11 +387,31 @@ struct MarkdownMessage: View {
                         HStack { Text(language.isEmpty ? "代码" : language).font(.caption); Spacer(); Button("复制代码") { UIPasteboard.general.string = block.text }.font(.caption).frame(minHeight: 44) }
                         ScrollView(.horizontal) { Text(block.text).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
                     }.padding(12).background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                } else if block.kind == .table {
+                    ScrollView(.horizontal) {
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
+                            ForEach(Array(block.rows.enumerated()), id: \.offset) { row in
+                                GridRow { ForEach(Array(row.element.enumerated()), id: \.offset) { cell in
+                                    Text(cell.element).fontWeight(row.offset == 0 ? .bold : .regular).frame(minWidth: 90, alignment: .leading).textSelection(.enabled)
+                                } }
+                            }
+                        }.padding(12)
+                    }.background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10)).accessibilityIdentifier("reply-table")
+                } else if block.kind == .quote {
+                    HStack(alignment: .top) { Rectangle().fill(Color.accentColor).frame(width: 3); Text(block.text).textSelection(.enabled) }.fixedSize(horizontal: false, vertical: true).padding(8).background(Color.secondary.opacity(0.06)).accessibilityIdentifier("reply-quote")
                 } else {
                     Text((try? AttributedString(markdown: block.text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(block.text)).textSelection(.enabled)
                 }
             }
         }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let safe = ReplyLink.external(url.absoluteString) else { return .discarded }
+            externalURL = safe; return .handled
+        })
+        .confirmationDialog("在浏览器打开外部链接？", isPresented: Binding(get: { externalURL != nil }, set: { if !$0 { externalURL = nil } }), titleVisibility: .visible) {
+            Button("打开浏览器") { if let url = externalURL { openURL(url) }; externalURL = nil }
+            Button("取消", role: .cancel) { externalURL = nil }
+        } message: { Text("外部内容不会自动下载，也不会附带 App 的认证令牌。\n" + (externalURL?.host ?? "")) }
     }
 }
 #endif

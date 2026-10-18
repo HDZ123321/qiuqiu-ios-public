@@ -73,6 +73,30 @@ final class HermesAPI {
             DiagnosticLog.shared.record(.uploadVerified,id:id,status:(response as? HTTPURLResponse)?.statusCode)
         } catch { DiagnosticLog.shared.record(.uploadFailed,id:id,code:(error as NSError).code); throw error }
     }
+    func replyArtifacts(_ settings: ConnectionSettings, runID: String) async throws -> [ReplyArtifact] {
+        try validateRunID(runID)
+        let data = try await runRequest(settings, path: "app/artifacts/" + runID)
+        let items = try JSONDecoder().decode(ReplyArtifacts.self, from: data).items
+        guard items.count <= 16 else { throw ClientError.message("产物数量超限。") }
+        for item in items { try item.validate() }
+        return items
+    }
+    private func validateRunID(_ id: String) throws {
+        guard id.hasPrefix("run_"), id.count <= 200, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { throw ClientError.message("无效任务编号。") }
+    }
+    func replyArtifact(_ settings: ConnectionSettings, runID: String, artifact: ReplyArtifact) async throws -> Data {
+        try validateRunID(runID); try artifact.validate()
+        let req = try request("app/artifacts/" + runID + "/" + artifact.id, settings: settings)
+        let (bytes, response) = try await session.bytes(for: req)
+        try validate(response)
+        var data = Data()
+        for try await byte in bytes {
+            guard data.count < 4*1024*1024 else { throw ClientError.message("产物超过 4 MB。") }
+            data.append(byte)
+        }
+        guard !data.isEmpty else { throw ClientError.message("空产物。") }
+        return data
+    }
     func models(_ settings: ConnectionSettings) async throws -> [String] {
         let id = UUID()
         DiagnosticLog.shared.record(.requestStart, id: id, url: try? ServerEndpoint(settings.serverURL).url(for: "models"))

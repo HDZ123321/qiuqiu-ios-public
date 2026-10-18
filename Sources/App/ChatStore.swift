@@ -208,6 +208,7 @@ import HermesCore
         if let session = run.sessionID, chats[i].serverSource == nil { chats[i].sessionID = session }
         if let j = chats[i].messages.firstIndex(where: { $0.id == run.replyID }) {
             if let output = run.output { chats[i].messages[j].content = output }
+            if run.status == "completed" { chats[i].messages[j].artifactRunID = run.runID }
             chats[i].messages[j].interrupted = run.terminal && run.status != "completed"
         }
         if run.status == "waiting_for_approval" && previous != run.status { DiagnosticLog.shared.record(.approvalSeen, id: run.replyID) }
@@ -330,19 +331,24 @@ import HermesCore
         chats[i].run?.stopRequested = true
         do { try saveChats(chats); resume() } catch { self.error = "停止请求未保存，请重试。" }
     }
-    func approve(_ choice: String) {
-        guard !approvalBusy, ["once", "deny"].contains(choice), let run = activeRun,
+    func approve(_ choice: String, expectedKey: String? = nil, expectedRequestID: String? = nil) {
+        guard !approvalBusy, connected, ["once", "deny"].contains(choice), let run = activeRun,
+              expectedKey == nil || expectedKey == run.key,
               run.status == "waiting_for_approval", let approval = run.approval,
               approval.choices?.contains(choice) == true, let requestID = approval.request_id,
+              expectedRequestID == nil || expectedRequestID == requestID,
               let runID = run.runID, let chatID = activeChat?.id else { return }
+        let configuration = settings
+        let connectionEpoch = epoch
         DiagnosticLog.shared.record(choice == "once" ? .approvalOnce : .approvalDeny, id: run.replyID)
         approvalBusy = true
         Task {
             defer { approvalBusy = false }
             do {
                 let body = try JSONSerialization.data(withJSONObject: ["choice": choice, "request_id": requestID])
-                _ = try await api.runRequest(settings, path: "runs/\(runID)/approval", method: "POST", body: body)
-                let snapshot = try await api.runRequest(settings, path: "runs/\(runID)", correlation: run.replyID)
+                _ = try await api.runRequest(configuration, path: "runs/\(runID)/approval", method: "POST", body: body)
+                let snapshot = try await api.runRequest(configuration, path: "runs/\(runID)", correlation: run.replyID)
+                guard epoch == connectionEpoch, activeRun?.key == run.key else { return }
                 try reconcile(snapshot, chatID: chatID)
             } catch { self.error = "批准结果未确认；不会自动重发，请核实服务器状态。" }
         }
