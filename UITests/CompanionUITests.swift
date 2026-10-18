@@ -178,7 +178,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout:5)); XCTAssertTrue(row.isHittable)
         screenshot("all-source-older-page-wechat")
         row.tap()
-        XCTAssertTrue(app.staticTexts["Read-only WeChat fixture"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.textViews.matching(NSPredicate(format: "value == %@", "Read-only WeChat fixture")).firstMatch.waitForExistence(timeout:10))
         XCTAssertTrue(app.buttons["完成"].exists)
         XCTAssertTrue(app.buttons["发送"].exists)
         XCTAssertFalse(app.buttons["发送"].isEnabled) // no draft; opening never sends
@@ -358,9 +358,9 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(renamed.exists); screenshot("review-search")
         renamed.tap()
         XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout: 3))
-        let composer = app.textViews.firstMatch
-        if composer.exists { composer.tap(); composer.typeText("键盘草稿") }
-        else { let f = app.textFields.matching(NSPredicate(format: "placeholderValue CONTAINS %@", "跟球球")).firstMatch; f.tap(); f.typeText("键盘草稿") }
+        // Reply bodies are native read-only text views, not the composer.
+        let composer = app.textFields.matching(NSPredicate(format: "placeholderValue CONTAINS %@", "跟球球")).firstMatch
+        composer.tap(); composer.typeText("键盘草稿")
         XCTAssertTrue(app.buttons["发送"].exists); screenshot("chat-keyboard")
         app.buttons["完成"].tap()
         app.tabBars.buttons["任务"].tap(); XCTAssertTrue(app.staticTexts["当前没有进行中的任务"].exists)
