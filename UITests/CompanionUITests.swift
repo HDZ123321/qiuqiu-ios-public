@@ -9,7 +9,13 @@ final class CompanionUITests: XCTestCase {
             let title = app.staticTexts["一级标题 Heading"]
             XCTAssertTrue(title.waitForExistence(timeout: 5))
             screenshot(dark ? "typography-headings-dark-huge" : "typography-headings-light")
-            for _ in 0..<4 { app.swipeUp(velocity: .slow) }
+            let viewport = app.scrollViews["message-reading-scroll"]
+            let task = app.staticTexts["Completed task, read only"]
+            for _ in 0..<18 {
+                if task.isHittable { break }
+                viewport.swipeUp(velocity: .slow)
+            }
+            XCTAssertTrue(task.isHittable)
             screenshot(dark ? "typography-lists-dark-huge" : "typography-lists-light")
             XCTAssertTrue(app.buttons["完成"].isHittable)
             app.terminate()
@@ -37,6 +43,12 @@ final class CompanionUITests: XCTestCase {
         XCTAssertEqual(tableCopies.count, 2)
         tableCopies.element(boundBy: 1).tap(); XCTAssertTrue(app.buttons["已复制表格"].exists)
         screenshot("typography-wide-table-copy")
+        let tableScrolls = app.scrollViews.matching(NSPredicate(format: "identifier != %@", "message-reading-scroll"))
+        if tableScrolls.count > 0 { tableScrolls.element(boundBy: tableScrolls.count - 1).swipeLeft() }
+        screenshot("typography-wide-table-horizontal-revealed")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        screenshot("typography-table-landscape-wide-viewport")
+        XCUIDevice.shared.orientation = .portrait
         app.terminate()
     }
     func testTypographyStreamingReaderStaysPutAndCanFollow() {
