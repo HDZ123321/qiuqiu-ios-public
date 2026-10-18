@@ -133,6 +133,9 @@ def prepare_attachments(payload, workspace):
     return result
 
 async def handle(request):
+    if request.path.startswith('/v1/app/artifacts/'):
+        from artifact_bridge import handle as artifact_handle
+        return await artifact_handle(request)
     if request.path == '/v1/profile/sessions' or request.path.startswith('/v1/profile/sessions/'):
         from profile_session_bridge import handle as profile_handle
         return await profile_handle(request)
