@@ -21,6 +21,7 @@ jobs:
           git -C "$RUNNER_TEMP/native-hermes" checkout 63220ae5c3b65013f9e240bac6d489021bc505e0
           export QIU_HERMES_SOURCE="$RUNNER_TEMP/native-hermes"
           mkdir -p evidence
+          python scripts/verify_native_approval.py 2>&1 | tee evidence/native-approval.log
           for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron artifacts artifact_http; do
             python "scripts/test_${test}.py" 2>&1 | tee "evidence/backend-${test}.log"
           done

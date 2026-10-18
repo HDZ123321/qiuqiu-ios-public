@@ -8,7 +8,7 @@ import artifact_bridge as bridge
 class Artifacts(unittest.TestCase):
     def test_only_explicit_workspace_media_references_are_deliverable(self):
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d)/'scope'; root.mkdir()
+            root = Path(d).resolve()/'scope'; root.mkdir()
             good = root/'report.txt'; good.write_text('Generated fixture document')
             private = Path(d)/'secret.txt'; private.write_text('not public')
             (root/'escape.txt').symlink_to(private)
@@ -18,7 +18,7 @@ class Artifacts(unittest.TestCase):
             self.assertEqual(bridge.read(items[0],root),b'Generated fixture document')
     def test_reference_recheck_rejects_symlink_replacement(self):
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d); p=root/'result.txt'; p.write_text('ok')
+            root = Path(d).resolve(); p=root/'result.txt'; p.write_text('ok')
             item=bridge.references(f'MEDIA:{p}',root)[0]
             p.unlink(); p.symlink_to('/etc/hosts')
             with self.assertRaises(web.HTTPException): bridge.read(item,root)
