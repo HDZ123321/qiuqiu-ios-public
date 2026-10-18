@@ -22,8 +22,11 @@ final class CompanionUITests: XCTestCase {
         if paste.waitForExistence(timeout: 3) { paste.tap() }
         else if menuPaste.exists { menuPaste.tap() }
         else { XCTFail("Native Paste action missing: \(app.debugDescription)"); return }
+        let pasted = NSPredicate(format: "value != %@", "跟球球说…")
+        expectation(for: pasted, evaluatedWith: composer)
+        waitForExpectations(timeout: 5)
+        screenshot("selection-paste-result")
         XCTAssertEqual(composer.value as? String, "TARGET")
-        screenshot("selection-target-pasted-exactly")
     }
     func testTypographyHeadingsListsLightAndDarkHugeText() {
         for dark in [false, true] {

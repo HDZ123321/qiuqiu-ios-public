@@ -22,7 +22,8 @@ import HermesCore
     private var observers: [NSObjectProtocol] = []
     private var observingInterruptions = false
     private var token = UUID()
-    init(capture: AppleVoiceCapture = LiveAppleVoiceCapture(), notificationCenter: NotificationCenter = .default) {
+    convenience init() { self.init(capture: LiveAppleVoiceCapture()) }
+    init(capture: AppleVoiceCapture, notificationCenter: NotificationCenter = .default) {
         self.capture = capture; center = notificationCenter
     }
     func authorize() async -> VoicePermission { await capture.authorize() }
