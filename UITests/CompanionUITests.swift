@@ -43,9 +43,13 @@ final class CompanionUITests: XCTestCase {
         XCTAssertEqual(tableCopies.count, 2)
         tableCopies.element(boundBy: 1).tap(); XCTAssertTrue(app.buttons["已复制表格"].exists)
         screenshot("typography-wide-table-copy")
-        let tableScroll = app.scrollViews.matching(identifier: "reply-table-horizontal").element(boundBy: 1)
-        XCTAssertTrue(tableScroll.exists)
-        tableScroll.swipeLeft(); tableScroll.swipeLeft()
+        // SwiftUI propagates the parent table AX identifier to nested scrolls.
+        // Drag within the row below the second copy control rather than guessing AX type.
+        let rowY = app.buttons["已复制表格"].frame.maxY + 42
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: app.frame.width - 55, dy: rowY))
+        let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 60, dy: rowY))
+        start.press(forDuration: 0.1, thenDragTo: end)
+        start.press(forDuration: 0.1, thenDragTo: end)
         let lastCell = app.staticTexts["End of wide table"]
         XCTAssertTrue(lastCell.isHittable)
         screenshot("typography-wide-table-horizontal-revealed")
