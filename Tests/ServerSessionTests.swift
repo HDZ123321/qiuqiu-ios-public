@@ -3,6 +3,17 @@ import XCTest
 @testable import HermesTransport
 
 final class ServerSessionTests: XCTestCase {
+    func testActiveImportedTaskNeverReceivesDuplicateServerMessages() throws {
+        let item = try JSONDecoder().decode(ServerSessionItem.self,from:Data(#"{"session_id":"s_a","created_seq":1,"run_count":1,"history":"explicit_fetch"}"#.utf8))
+        let page = try JSONDecoder().decode(ServerSessionMessages.self,from:Data(#"{"session_id":"s_a","history":"stored_text","items":[{"id":"1","role":"user","content":"question"}],"next_offset":null}"#.utf8))
+        var chats:[Chat]=[]
+        _ = try ServerSessionImport.open(item,scope:"a",chats:&chats,pages:[])
+        chats[0].run = try PendingRun(input:"pending",model:"fixture",sessionID:"s_a",history:[],replyID:UUID())
+        let runKey = chats[0].run?.key
+        _ = try ServerSessionImport.open(item,scope:"a",chats:&chats,pages:[page])
+        XCTAssertTrue(chats[0].messages.isEmpty)
+        XCTAssertEqual(chats[0].run?.key,runKey)
+    }
     func testRealTitleAndRefreshMergePreserveLocalIdentityEditsAndDeduplicate() throws {
         let metadata = try JSONDecoder().decode(ServerSessionItem.self,from:Data(#"{"session_id":"s_a","created_seq":1,"run_count":1,"history":"explicit_fetch","title":"Native original","title_source":"native"}"#.utf8))
         let page = try JSONDecoder().decode(ServerSessionMessages.self,from:Data(#"{"session_id":"s_a","history":"stored_text","items":[{"id":"1","role":"user","content":"question"}],"next_offset":null}"#.utf8))
