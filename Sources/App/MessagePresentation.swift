@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import UIKit
 
@@ -95,3 +96,5 @@ struct MessagePresentationBlock: View {
         }
     }
 }
+
+#endif

@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 private struct ReadingBottomKey: PreferenceKey {
@@ -55,3 +56,5 @@ struct ReadingMessageScroll<Content: View>: View {
         }
     }
 }
+
+#endif

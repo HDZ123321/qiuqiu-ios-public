@@ -36,6 +36,10 @@ final class MessageTypographyTests: XCTestCase {
         XCTAssertEqual(MessageBlock.parse("- [ ] Pending").first?.checked, false)
         XCTAssertEqual(MessageBlock.parse("#not heading").first?.kind, .prose)
     }
+    func testHeadingKeepsLiteralTrailingHash() {
+        XCTAssertEqual(MessageBlock.parse("# C#").first?.text, "C#")
+        XCTAssertEqual(MessageBlock.parse("## Closed title ##").first?.text, "Closed title")
+    }
     func testOnlyUserScrollChangesFollowState() {
         var state = MessageReadPosition()
         state.contentChanged(); XCTAssertTrue(state.following)

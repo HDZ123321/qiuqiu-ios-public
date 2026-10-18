@@ -39,7 +39,11 @@ public struct MessageBlock: Identifiable {
               let m = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) else { return nil }
         return (0..<m.numberOfRanges).map { Range(m.range(at: $0), in: line).map { String(line[$0]) } ?? "" }
     }
-    private static func heading(_ line: String) -> [String]? { match("^ {0,3}(#{1,6})[ \\t]+(.+?)\\s*#*\\s*$", line) }
+    private static func heading(_ line: String) -> [String]? {
+        guard var h = match("^ {0,3}(#{1,6})[ \\t]+(.+)$", line) else { return nil }
+        h[2] = h[2].replacingOccurrences(of: "[ \\t]+#+[ \\t]*$", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+        return h
+    }
     private static func item(_ line: String) -> [String]? { match("^([ \\t]*)([-+*]|[0-9]{1,9}[.)])[ \\t]+(.*)$", line) }
     private static func cells(_ source: String) -> [String] {
         let s = source.trimmingCharacters(in: .whitespaces)
