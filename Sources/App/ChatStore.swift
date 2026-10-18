@@ -94,7 +94,7 @@ import HermesCore
     /// pending/active run, pauses in background or when the chat is closed.
     func startSync(for chatID: UUID) {
         stopSync()
-        guard let chat = chats.first(where: { $0.id == chatID }), chat.sessionID != nil else { return }
+        guard let chat = chats.first(where: { $0.id == chatID }), chat.sessionID != nil, chat.serverSource != nil else { return }
         let token = UUID(); syncEpoch = token
         syncState[chatID] = "loading"
         syncTask = Task { [weak self] in
@@ -126,8 +126,19 @@ import HermesCore
                 if pages.allSatisfy({ $0.session_id == sessionID && $0.history == "stored_text" }) {
                     var updated = chats[k]
                     let before = updated.messages.count
+                    // A completed app turn has local display placeholders, not native
+                    // row IDs. Replace only that exact paired tail with canonical rows.
+                    if updated.serverSource != nil, let run = updated.run, run.status == "completed",
+                       let reply = updated.messages.firstIndex(where: { $0.id == run.replyID }),
+                       reply == updated.messages.count - 1, reply > 0,
+                       updated.messages[reply].serverMessageID == nil,
+                       updated.messages[reply-1].role == "user", updated.messages[reply-1].serverMessageID == nil,
+                       let final = pages.flatMap(\.items).last, final.role == "assistant", final.content == updated.messages[reply].content,
+                       pages.flatMap(\.items).dropLast().last?.content == updated.messages[reply-1].content {
+                        updated.messages.removeLast(2)
+                    }
                     for page in pages { ServerSessionSyncEngine.merge(page, into: &updated) }
-                    if updated.messages.count != before { chats[k] = updated; persist() }
+                    if updated.messages.count != before || updated.messages.map(\.serverMessageID) != chats[k].messages.map(\.serverMessageID) { chats[k] = updated; persist() }
                 } else { throw ClientError.message("历史不可用") }
                 syncState[chatID] = status.busyOnServer ? "busy" : status.can_continue ? "live" : "stale"
             }
