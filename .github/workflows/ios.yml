@@ -57,7 +57,7 @@ jobs:
           cp -R build/Build/Products/Release-iphoneos/QiuQiu.app build/package/Payload/
           APP=build/package/Payload/QiuQiu.app
           file "$APP/QiuQiu" | tee evidence/binary-info.txt
-          xcrun lipo -verify_arch arm64 "$APP/QiuQiu"
+          xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 10
