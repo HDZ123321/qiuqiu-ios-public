@@ -54,7 +54,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout:10)); row.tap()
         XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout:10))
         // Server lease held by the original channel -> busy/wait badge, send stays off.
-        XCTAssertTrue(app.otherElements["sync-state-busy"].waitForExistence(timeout:10) || app.staticTexts["原渠道正在进行对话，等待其完成后再继续"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "sync-state-busy").firstMatch.waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["发送"].isEnabled)
         screenshot("server-session-ongoing-busy-sync")
     }
