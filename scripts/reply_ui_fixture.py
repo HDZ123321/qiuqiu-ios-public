@@ -2,7 +2,13 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import base64
-PNG=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
+import zlib
+import struct
+def chunk(kind,data):
+    return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+width,height=320,180
+pixels=b''.join(b'\x00'+b''.join(bytes((35 if x<160 else 225,110 if y<90 else 180,190)) for x in range(width)) for y in range(height))
+PNG=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(pixels))+chunk(b'IEND',b'')
 IMAGE='a'*64
 FILE='b'*64
 status='waiting_for_approval'
