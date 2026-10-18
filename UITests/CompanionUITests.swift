@@ -39,15 +39,27 @@ final class CompanionUITests: XCTestCase {
         app.buttons["跟我说"].tap()
         app.swipeDown(); app.swipeDown()
         XCTAssertTrue(app.descendants(matching: .any)["reply-table"].waitForExistence(timeout: 5)); screenshot("reply-table-quote-accessibility-text")
-        for _ in 0..<6 { if app.buttons["复制代码"].isHittable { break }; app.swipeUp() }
-        XCTAssertTrue(app.buttons["复制代码"].isHittable); screenshot("reply-long-code-dynamic-type")
+        // Scroll incrementally inside the message viewport; a full-screen swipe
+        // skips the code header at accessibility sizes and lands in long prose.
+        for _ in 0..<3 {
+            if app.buttons["复制代码"].isHittable { break }
+            app.swipeDown(velocity: .slow)
+        }
+        if !app.buttons["复制代码"].isHittable {
+            for _ in 0..<40 {
+                if app.buttons["复制代码"].isHittable { break }
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.60))
+                start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.48)))
+            }
+        }
+        XCTAssertTrue(app.buttons["复制代码"].isHittable); app.buttons["复制代码"].tap(); screenshot("reply-long-code-dynamic-type")
         app.terminate()
         app.launchArguments = ["--ui-replies", "--ui-approval", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]; app.launch()
         app.tabBars.buttons["任务"].tap()
         let once = app.buttons["approval-once"]
         for _ in 0..<8 { if once.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(once.waitForExistence(timeout: 5)); XCTAssertTrue(once.isEnabled); screenshot("reply-approval-exact-request")
-        once.tap(); screenshot("reply-approval-user-confirmation")
+        once.tap(); XCTAssertTrue(app.buttons["确认仅批准本次"].waitForExistence(timeout: 5)); screenshot("reply-approval-user-confirmation")
         app.buttons["取消"].tap(); XCTAssertTrue(once.isEnabled)
         once.tap(); app.buttons["确认仅批准本次"].tap()
         XCTAssertTrue(app.staticTexts["当前没有进行中的任务"].waitForExistence(timeout: 15)); screenshot("reply-approval-server-readback-completed")

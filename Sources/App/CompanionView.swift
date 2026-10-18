@@ -180,7 +180,7 @@ struct RunCard: View {
                     Text("请阅读操作后决定，仅对这一次请求有效。").font(.caption).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 10) {
                         if let requestID = approval.request_id, approval.choices?.contains("deny") == true { Button("拒绝", role: .destructive) { approvalIntent = ApprovalIntent(key: run.key, requestID: requestID, choice: "deny") }.accessibilityIdentifier("approval-deny") }
-                        if let requestID = approval.request_id, approval.choices?.contains("once") == true { Button("仅批准本次…") { approvalIntent = ApprovalIntent(key: run.key, requestID: requestID, choice: "once") }.accessibilityIdentifier("approval-once") }
+                        if let requestID = approval.request_id, approval.choices?.contains("once") == true { Button { approvalIntent = ApprovalIntent(key: run.key, requestID: requestID, choice: "once") } label: { Text("仅批准本次…").fixedSize(horizontal: false, vertical: true) }.accessibilityIdentifier("approval-once") }
                     }.buttonStyle(.bordered).disabled(store.approvalBusy || !store.connected)
                     if approval.request_id == nil { Text("服务器未提供精确请求编号，不能安全作答。请等待服务端更新状态。").font(.caption) }
                 }
