@@ -1,0 +1,89 @@
+name: Public source iOS candidate
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Isolated backend regressions with public native cron source
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/ci-venv"
+          source "$RUNNER_TEMP/ci-venv/bin/activate"
+          python -m pip install aiohttp==3.14.5 PyYAML==6.0.3 croniter==6.2.4 python-dotenv==1.2.4 ruamel.yaml==0.19.1
+          git clone --filter=blob:none --no-checkout https://github.com/NousResearch/hermes-agent.git "$RUNNER_TEMP/native-hermes"
+          git -C "$RUNNER_TEMP/native-hermes" checkout 63220ae5c3b65013f9e240bac6d489021bc505e0
+          export QIU_HERMES_SOURCE="$RUNNER_TEMP/native-hermes"
+          mkdir -p evidence
+          for test in workspace proxy attachments stop_safety run_history sessions cron; do
+            python "scripts/test_${test}.py" 2>&1 | tee "evidence/backend-${test}.log"
+          done
+      - name: Swift regression with loopback SSE fixture only
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python3 scripts/sse_fixture.py > evidence/sse-fixture.log 2>&1 &
+          FIXTURE_PID=$!
+          trap 'kill "$FIXTURE_PID" || true' EXIT
+          python3 -c 'import urllib.request,time; [(time.sleep(.2)) for _ in range(5)]; urllib.request.urlopen("http://127.0.0.1:18765/ready").read()'
+          swift test --skip LiveRunTests --skip WorkspaceLiveTests 2>&1 | tee evidence/swift-test.log
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build real unsigned iPhoneOS arm64 candidate
+        run: |
+          set -euo pipefail
+          xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee evidence/device-build.log
+      - name: Simulator smoke and injected voice state acceptance
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for k,v in d["devices"].items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO -only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText test 2>&1 | tee evidence/ui-test.log
+      - name: Package and verify IPA
+        run: |
+          set -euo pipefail
+          mkdir -p build/package/Payload
+          cp -R build/Build/Products/Release-iphoneos/QiuQiu.app build/package/Payload/
+          APP=build/package/Payload/QiuQiu.app
+          file "$APP/QiuQiu" | tee evidence/binary-info.txt
+          xcrun lipo -verify_arch arm64 "$APP/QiuQiu"
+          xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 10
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
+          if codesign -d "$APP" 2>/dev/null; then exit 1; fi
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build10-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build10-unsigned.ipa | tee evidence/SHA256SUMS
+      - name: Export screenshots and metadata on every outcome
+        if: always()
+        run: |
+          mkdir -p evidence
+          { git rev-parse HEAD; sw_vers; xcodebuild -version; } > evidence/source-platform.txt
+          if test -d evidence/ui-results.xcresult; then
+            xcrun xcresulttool export attachments --path evidence/ui-results.xcresult --output-path evidence/screenshots
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-evidence
+          path: evidence
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QiuQiu-Build10-unsigned-ipa
+          path: |
+            build/QiuQiu-Build10-unsigned.ipa
+            evidence/SHA256SUMS
+            evidence/binary-info.txt
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,23 @@
+球球 iOS — Source attribution
+
+Reference: Hermes Android 3.8.8, jeromeleeqy-hash
+https://github.com/jeromeleeqy-hash/Hermes-Android
+Reference revision: 65aedfa629403f70f907c3b6387b27ef498ae57b
+
+The user reports the original author/friend granted permission to copy original UI, code and artwork. This is not a claim that the upstream repository has a general open-source license.
+
+Native SwiftUI adaptation references:
+- ui/screen/AssistantHomeScreen.kt: simple-home greeting, character, daily-chat action, recent rows
+- ui/screen/SessionsScreen.kt: search, rename, pin and archive interaction
+- ui/screen/TasksScreen.kt: execution center and approval interaction
+- ui/component/MarkdownContent.kt: prose and independently copyable code blocks
+- ui/component/AppChrome.kt and ui/theme/Theme.kt: restrained chrome, spacing and theme palette
+
+Copied original artwork:
+Resources/Artwork/assistant.png comes unmodified from
+app/src/main/res/drawable-nodpi/mascot_01b_idle_full_poster.png
+at the revision above. Original creator rights retained.
+
+No Android Kotlin runtime code, Android third-party fonts/icons, Phosphor icons, media playback libraries, Dashboard authentication or gateway protocol were incorporated. iOS uses Apple system typography, SF Symbols, native material and a static original character poster. Existing iOS Runs API, Keychain and diagnostics remain in use. No license or attribution notices were removed from copied material. Source attribution is bundled in the app.
+
+Full Android feature/visual parity is incomplete. Current source adds scoped workspace, cron, admitted run history, on-device voice-to-editable-text and scoped session-restore candidates; source presence is not compile, deployment or physical-device acceptance. Animated character, exact Android optical glass shader, organizers, full voice conversation and all Android settings remain unported. The Files picker defect is unresolved and its repair is paused.

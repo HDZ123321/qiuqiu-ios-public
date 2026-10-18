@@ -1,0 +1,19 @@
+QiuQiu source publication notice
+
+Source is published at the application owner's direction for inspection and building.
+No general third-party redistribution or sublicensing grant is made by this notice.
+Original authors retain their rights. This notice does not relicense third-party work.
+
+The Swift adaptation and optional Python boundary implementation are provided as-is,
+without warranty. No MIT/Apache or other broad open-source grant is asserted here.
+
+Android reference original UI/artwork: jeromeleeqy-hash/Hermes-Android,
+revision 65aedfa629403f70f907c3b6387b27ef498ae57b. The application owner reports
+permission from the original author/friend to reuse that author's original work.
+The bundled assistant.png is copied from mascot_01b_idle_full_poster.png at that
+revision, with original creator rights retained. That project has no root general
+license at the reference revision; author permission is not a license to unrelated
+third-party assets. See Resources/SourceAttribution.txt for the complete attribution.
+
+External build/test dependencies are not vendored and remain under their respective
+licenses. Apple's frameworks, SF Symbols and platform tooling are not relicensed.

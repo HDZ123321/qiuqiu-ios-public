@@ -1,0 +1,8 @@
+.build/
+build/
+*.xcodeproj/
+.DS_Store
+*.ipa
+__pycache__/
+*.pyc
+.ci-venv/

@@ -1,0 +1,56 @@
+name: QiuQiu
+options:
+  bundleIdPrefix: org.hermesclient
+  deploymentTarget:
+    iOS: '16.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+    TARGETED_DEVICE_FAMILY: '1,2'
+    CODE_SIGNING_ALLOWED: NO
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '10'
+targets:
+  QiuQiu:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/App
+      - Sources/Core
+      - path: Resources/Artwork
+        buildPhase: resources
+      - path: Resources/SourceAttribution.txt
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.hermesclient.qiuqiu
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Resources/Info.plist
+  QiuQiuPhotoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [TestsIOS]
+    dependencies:
+      - target: QiuQiu
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/QiuQiu.app/QiuQiu"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  QiuQiuUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: QiuQiu
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  QiuQiu:
+    build:
+      targets:
+        QiuQiu: all
+    test:
+      targets: [QiuQiuPhotoTests, QiuQiuUITests]
