@@ -1,6 +1,48 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testReplyImageFilePreviewShareAndAnswerDraft() {
+        let app = XCUIApplication(); app.launchArguments = ["--ui-replies"]; app.launch()
+        app.buttons["跟我说"].tap()
+        let image = app.buttons["reply-image"]
+        XCTAssertTrue(image.waitForExistence(timeout: 15)); image.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["reply-image-preview"].waitForExistence(timeout: 5)); screenshot("reply-inline-image-preview")
+        app.buttons["关闭预览"].tap()
+        let files = app.buttons.matching(identifier: "reply-file-preview")
+        for _ in 0..<5 { if files.count > 1 && files.element(boundBy: 1).isHittable { break }; app.swipeUp() }
+        XCTAssertEqual(files.count, 2); files.element(boundBy: 1).tap()
+        XCTAssertTrue(app.staticTexts["Generated downloadable document fixture.\nExact bytes verified."].waitForExistence(timeout: 10)); screenshot("reply-generated-file-preview")
+        app.buttons["下载 / 分享产物"].tap()
+        let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy")).firstMatch
+        XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("reply-generated-file-share")
+        copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
+        for _ in 0..<5 { if app.buttons["reply-answer"].isHittable { break }; app.swipeDown() }
+        app.buttons["reply-answer"].tap()
+        XCTAssertTrue(app.textFields["answer-text"].waitForExistence(timeout: 5))
+        app.textFields["answer-text"].tap(); app.textFields["answer-text"].typeText("My explicit answer")
+        screenshot("reply-answer-native-contract-limit")
+        app.buttons["answer-draft"].tap()
+        XCTAssertEqual(app.textFields.firstMatch.value as? String, "My explicit answer")
+        XCTAssertTrue(app.buttons["发送"].isEnabled)
+    }
+    func testReplyFormattingLargeTextAndApprovalConfirmation() {
+        let app = XCUIApplication(); app.launchArguments = ["--ui-replies", "--ui-formatting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]; app.launch()
+        app.buttons["跟我说"].tap()
+        app.swipeDown(); app.swipeDown()
+        XCTAssertTrue(app.descendants(matching: .any)["reply-table"].waitForExistence(timeout: 5)); screenshot("reply-table-quote-accessibility-text")
+        for _ in 0..<6 { if app.buttons["复制代码"].isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(app.buttons["复制代码"].isHittable); screenshot("reply-long-code-dynamic-type")
+        app.terminate()
+        app.launchArguments = ["--ui-replies", "--ui-approval", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]; app.launch()
+        app.tabBars.buttons["任务"].tap()
+        let once = app.buttons["approval-once"]
+        for _ in 0..<8 { if once.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(once.waitForExistence(timeout: 5)); XCTAssertTrue(once.isEnabled); screenshot("reply-approval-exact-request")
+        once.tap(); screenshot("reply-approval-user-confirmation")
+        app.buttons["取消"].tap(); XCTAssertTrue(once.isEnabled)
+        once.tap(); app.buttons["确认仅批准本次"].tap()
+        XCTAssertTrue(app.staticTexts["当前没有进行中的任务"].waitForExistence(timeout: 15)); screenshot("reply-approval-server-readback-completed")
+    }
     private func screenshot(_ name: String) {
         let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         image.name = name; image.lifetime = .keepAlways; add(image)

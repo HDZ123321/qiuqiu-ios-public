@@ -23,7 +23,7 @@ struct CompanionView: View {
                     Section("连接与诊断") { NavigationLink("连接设置 · 诊断日志") { SettingsView(store: store) } }
                     Section("外观") { Picker("主题", selection: $skin) { Text("液态玻璃").tag("glass"); Text("温暖灵动").tag("warm"); Text("安静耐看").tag("quiet") } }
                     Section("关于") {
-                        Text("球球 iOS · Build 8")
+                        Text("球球 iOS · Build 14")
                         Text("界面适配自 Hermes Android 3.8.8。原作 jeromeleeqy-hash；用户报告已获作者原作使用许可。保留来源，未使用第三方图标或字体。") .font(.footnote)
                         Link("原项目与来源", destination: URL(string: "https://github.com/jeromeleeqy-hash/Hermes-Android")!)
                         Text("本版文件仅限专用安全工作区；定时安排使用独立受限接口，未开放时不可用。不含完整语音会话/朗读及深度助理整理。聊天麦克风仅设备端转文字草稿，需手动发送。跟我说打开聊天。人物为原作静态资源；玻璃材质使用 iOS 原生适配。") .font(.footnote).foregroundStyle(.secondary)
@@ -302,6 +302,8 @@ struct RunHistoryView: View {
     @State private var draft = ""
     @State private var taskDetails = false
     @State private var voiceOpen = false
+    @State private var answerOpen = false
+    @State private var answer = ""
     @State private var voiceChatID: UUID?
     var body: some View {
         VStack(spacing: 0) {
@@ -316,6 +318,9 @@ struct RunHistoryView: View {
                                 if message.interrupted == true { Text("未完成的回复").font(.caption).foregroundStyle(.orange) }
                                 if message.content.isEmpty { Text(store.current?.run?.terminal == false ? "等待球球回复…" : "未收到回复（已停止或请求失败）").foregroundStyle(.secondary) }
                                 else { MarkdownMessage(content: message.content) }
+                                if message.role == "assistant", store.current?.run?.terminal != false {
+                                    Button("回答 / 补充这条消息") { draft = ""; answerOpen = true }.buttonStyle(.bordered).accessibilityIdentifier("reply-answer")
+                                }
                                 if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
                                     ReplyArtifactsView(runID: runID, settings: store.settings)
                                 }
@@ -362,6 +367,17 @@ struct RunHistoryView: View {
                 Button { let text = draft; store.send(text); if store.busy { draft = "" } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("发送").disabled(!store.canSend || store.attachmentLoading || store.current?.archived == true || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.attachments.isEmpty))
             }.padding()
         }.navigationTitle(store.current?.title ?? "球球").navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $answerOpen) {
+            NavigationStack {
+                Form {
+                    Section("回答问题") {
+                        Text("当前原生 Runs API 没有 clarify.request / answer 接口，不能回答执行中阻塞的结构化选项。这里通过同一会话的下一条用户消息回答；不会伪造选项或自动提交。休止中的任务需先在服务器结束，不能用普通消息解锁。") .font(.caption).foregroundStyle(.secondary)
+                        TextField("输入你的回答或选项文字", text: $answer, axis: .vertical).accessibilityIdentifier("answer-text")
+                        Button("放入草稿，检查后发送") { draft = answer; answerOpen = false }.disabled(answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("answer-draft")
+                    }
+                }.navigationTitle("回答 / 补充").toolbar { Button("取消") { answerOpen = false } }
+            }
+        }
         .sheet(isPresented: $voiceOpen) {
             VoiceInputView { text in
                 guard voiceChatID == store.current?.id else { return }

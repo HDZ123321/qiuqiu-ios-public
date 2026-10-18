@@ -30,6 +30,11 @@ final class HermesAPI {
     private func request(_ path: String, settings: ConnectionSettings) throws -> URLRequest {
         guard !settings.bearer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ClientError.message("请先在设置中保存 Bearer Token。") }
         var request = URLRequest(url: try ServerEndpoint(settings.serverURL).url(for: path))
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-replies") {
+            request.url = URL(string: "http://127.0.0.1:18766/v1/" + path)
+        }
+        #endif
         request.setValue("Bearer \(settings.bearer)", forHTTPHeaderField: "Authorization")
         return request
     }

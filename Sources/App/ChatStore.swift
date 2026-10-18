@@ -44,6 +44,21 @@ import HermesCore
            let key=ProcessInfo.processInfo.environment["QIU_FILE_KEY"] {
             settings.serverURL=url; settings.bearer=key
         }
+        if ProcessInfo.processInfo.arguments.contains("--ui-replies") {
+            settings.serverURL = "https://fixture.invalid"; settings.bearer = "synthetic-fixture-only"
+            var reply = ChatMessage(role: "assistant", content: "Generated reply\nMEDIA:/synthetic/workspace/generated.png\nMEDIA:/synthetic/workspace/generated.txt")
+            reply.artifactRunID = "run_fixture"
+            if ProcessInfo.processInfo.arguments.contains("--ui-formatting") {
+                reply.content = "> A quoted explanation wraps at accessibility sizes.\n\n| Feature | Result |\n| --- | --- |\n| Table | Readable |\n\n[Example link](https://example.org)\n\n```swift\n" + String(repeating: "let longValue = \"horizontal scrolling preserves the whole line\"\n", count: 15) + "```\n\n" + String(repeating: "Long reply remains selectable and wraps with Dynamic Type. ", count: 50)
+            }
+            var chat = Chat(messages: [reply])
+            if ProcessInfo.processInfo.arguments.contains("--ui-approval") {
+                chat.run = try? PendingRun(input: "synthetic fixture", model: "fixture", sessionID: nil, history: [], replyID: reply.id)
+                try? chat.run?.apply(Data(#"{"run_id":"run_fixture","status":"waiting_for_approval","approval":{"request_id":"request_fixture","command":"Synthetic operation only: create a sample report","choices":["once","deny"]}}"#.utf8))
+                busy = true; connected = true
+            }
+            chats = [chat]; selected = chat.id; error = nil
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
             chats = [Chat()]; selected = chats[0].id; error = nil
         }
@@ -217,6 +232,7 @@ import HermesCore
     }
     func resume() {
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-replies") { return }
         if ProcessInfo.processInfo.arguments.contains("--ui-busy") { return } // No network or credentials in UI fixtures.
         #endif
         foreground = true

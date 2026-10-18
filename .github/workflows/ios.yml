@@ -21,7 +21,7 @@ jobs:
           git -C "$RUNNER_TEMP/native-hermes" checkout 63220ae5c3b65013f9e240bac6d489021bc505e0
           export QIU_HERMES_SOURCE="$RUNNER_TEMP/native-hermes"
           mkdir -p evidence
-          for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron; do
+          for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron artifacts artifact_http; do
             python "scripts/test_${test}.py" 2>&1 | tee "evidence/backend-${test}.log"
           done
       - name: Swift regression with loopback SSE fixture only
@@ -49,7 +49,11 @@ jobs:
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for k,v in d["devices"].items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b
-          xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO -only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testOngoingServerSessionShowsHonestSyncStateWithoutSending -only-testing:QiuQiuUITests/CompanionUITests/testAllSourcePaginationLoadsOlderReadOnlyConversation -only-testing:QiuQiuUITests/CompanionUITests/testServerRowOneTapOpensStoredHistoryWithoutImportOrSend -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText test 2>&1 | tee evidence/ui-test.log
+          python3 scripts/reply_ui_fixture.py > evidence/reply-fixture.log 2>&1 &
+          REPLY_PID=$!
+          trap 'kill "$REPLY_PID" || true' EXIT
+          curl --noproxy '*' --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 http://127.0.0.1:18766/ready > /dev/null
+          xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO -only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testReplyImageFilePreviewShareAndAnswerDraft -only-testing:QiuQiuUITests/CompanionUITests/testReplyFormattingLargeTextAndApprovalConfirmation -only-testing:QiuQiuUITests/CompanionUITests/testOngoingServerSessionShowsHonestSyncStateWithoutSending -only-testing:QiuQiuUITests/CompanionUITests/testAllSourcePaginationLoadsOlderReadOnlyConversation -only-testing:QiuQiuUITests/CompanionUITests/testServerRowOneTapOpensStoredHistoryWithoutImportOrSend -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
         run: |
           set -euo pipefail
@@ -60,11 +64,11 @@ jobs:
           xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 13
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 14
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
-          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build13-unsigned.ipa Payload)
-          shasum -a 256 build/QiuQiu-Build13-unsigned.ipa | tee evidence/SHA256SUMS
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build14-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build14-unsigned.ipa | tee evidence/SHA256SUMS
       - name: Export screenshots and metadata on every outcome
         if: always()
         run: |
@@ -82,9 +86,9 @@ jobs:
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: QiuQiu-Build13-unsigned-ipa
+          name: QiuQiu-Build14-unsigned-ipa
           path: |
-            build/QiuQiu-Build13-unsigned.ipa
+            build/QiuQiu-Build14-unsigned.ipa
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error
