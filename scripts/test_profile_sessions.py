@@ -30,6 +30,8 @@ class ProfileSessionsHTTP(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.client.close(); self.app['registry'].db.close(); self.db.close(); self.tmp.cleanup()
     async def get(self,path):
+        if path.startswith('/v1/profile/sessions?') and 'kind=' not in path: path+='&kind=all'
+        elif path=='/v1/profile/sessions': path+='?kind=all'
         response=await self.client.get(path,headers=self.headers)
         self.assertEqual(response.status,200)
         return await response.json()
@@ -51,12 +53,26 @@ class ProfileSessionsHTTP(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len({x['session_id'] for x in all_items}),123)
         self.assertEqual({x['source'] for x in all_items},{'weixin','api_server','cron','subagent'})
         self.assertTrue(any(x['archived'] for x in all_items)); self.assertTrue(any(x['hidden'] for x in all_items))
-        self.assertEqual([x['session_id'] for x in all_items if x['can_continue']],['s_1'])
+        self.assertTrue(all(x['can_continue']==(x['source'] in ('weixin','api_server')) for x in all_items))
         self.assertEqual(before,self.app['registry'].db.execute('SELECT * FROM runs').fetchall())
         for method,path in [('get','/v1/profile/sessions/foreign_profile/messages'),('post','/v1/profile/sessions'),('delete','/v1/profile/sessions/s_1')]:
             self.assertEqual((await getattr(self.client,method)(path,headers=self.headers)).status,404)
         self.assertEqual((await self.client.get('/v1/profile/sessions?limit=0',headers=self.headers)).status,400)
         self.assertEqual((await self.client.get('/v1/profile/sessions?profile=other',headers=self.headers)).status,404)
+
+    async def test_default_filter_and_explicit_adoption(self):
+        page=await self.get('/v1/profile/sessions?kind=conversations')
+        self.assertEqual(page['total'],62)
+        self.assertTrue(all(i['source'] in ('weixin','api_server') for i in page['items']))
+        self.assertFalse(self.app['registry'].session('s_0'))
+        self.assertEqual((await self.client.post('/v1/profile/sessions/s_0/adopt')).status,401)
+        for _ in range(2):
+            response=await self.client.post('/v1/profile/sessions/s_0/adopt',headers=self.headers)
+            self.assertEqual(response.status,200)
+        self.assertTrue(self.app['registry'].session('s_0'))
+        self.assertEqual(self.app['registry'].db.execute('SELECT COUNT(*) FROM adopted_sessions').fetchone()[0],1)
+        self.assertEqual((await self.client.post('/v1/profile/sessions/s_3/adopt',headers=self.headers)).status,403)
+        self.assertEqual((await self.client.post('/v1/profile/sessions/foreign_profile/adopt',headers=self.headers)).status,404)
 
     async def test_internal_records_remain_listed_but_prompts_never_export(self):
         self.db.execute("INSERT INTO messages(session_id,role,content,active,_compressed_summary) VALUES('s_3','user','private delegated prompt',1,0)")
@@ -90,7 +106,7 @@ class ProfileSessionsHTTP(unittest.IsolatedAsyncioTestCase):
         items=page['items']+page2['items']
         self.assertEqual(len(items),123)
         self.assertEqual(next(x['run_count'] for x in items if x['session_id']=='s_1'),2)
-        self.assertEqual(sum(x['can_continue'] for x in items),1)
+        self.assertEqual(sum(x['can_continue'] for x in items),62)
         self.assertEqual(sum(x['title'] is None for x in items),61)
 
 if __name__=='__main__': unittest.main()

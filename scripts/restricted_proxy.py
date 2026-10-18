@@ -34,7 +34,13 @@ class Registry:
             seq += 1
             self.db.execute('UPDATE runs SET created_seq=? WHERE id=?',(seq,run))
         self.db.execute('CREATE INDEX IF NOT EXISTS idx_runs_seq ON runs(created_seq DESC)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS adopted_sessions(session TEXT PRIMARY KEY, source TEXT NOT NULL)')
         self.db.commit()
+    def adopt(self, session, source):
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO adopted_sessions VALUES(?,?)', (session, source))
+    def adopted(self, session):
+        return self.db.execute('SELECT 1 FROM adopted_sessions WHERE session=?', (session,)).fetchone() is not None
     def remember(self, run, session):
         with self.db:
             row = self.db.execute('SELECT created_seq FROM runs WHERE id=?', (run,)).fetchone()
@@ -47,7 +53,7 @@ class Registry:
     def owns(self, run):
         return self.db.execute('SELECT 1 FROM runs WHERE id=?', (run,)).fetchone() is not None
     def session(self, session):
-        return self.db.execute('SELECT 1 FROM runs WHERE session=?', (session,)).fetchone() is not None
+        return self.adopted(session) or self.db.execute('SELECT 1 FROM runs WHERE session=?', (session,)).fetchone() is not None
     def history(self, limit=50, before=None):
         """Read-only metadata page for runs created through THIS app boundary.
 
@@ -130,6 +136,9 @@ async def handle(request):
     if request.path == '/v1/profile/sessions' or request.path.startswith('/v1/profile/sessions/'):
         from profile_session_bridge import handle as profile_handle
         return await profile_handle(request)
+    if request.path.startswith('/v1/app/sessions/sync'):
+        from session_sync_bridge import handle as sync_handle
+        return await sync_handle(request)
     if request.path == '/v1/app/sessions' or request.path.startswith('/v1/app/sessions/'):
         from session_bridge import handle as session_handle
         return await session_handle(request)
@@ -189,6 +198,15 @@ async def handle(request):
             # New sessions are server-generated. Existing sessions must belong to this app.
             if payload.get('session_id') and not registry.session(payload['session_id']):
                 raise web.HTTPForbidden()
+            if payload.get('session_id') and registry.adopted(payload['session_id']):
+                # Advisory fail-closed preflight; native durable lease closes the race.
+                from session_sync_bridge import _turn_lease_active
+                state = await asyncio.to_thread(_turn_lease_active, request.app.get('profile_sessions_db'), payload['session_id'])
+                if state is None: raise web.HTTPServiceUnavailable(text='Session lease state unknown')
+                if state: raise web.HTTPConflict(text='Original conversation busy; retry this same intent later')
+                # The canonical native DB, not a client transcript, owns context.
+                payload.pop('conversation_history', None)
+                body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
             if payload.get('attachments'):
                 async with request.app['workspace'].lock:
                     payload = await asyncio.to_thread(prepare_attachments, payload, request.app['workspace'])
@@ -202,7 +220,8 @@ async def handle(request):
                 valid = False
             if not valid:
                 raise web.HTTPBadRequest(text='Only one exact once/deny decision is allowed')
-        async with request.app['client'].request(request.method, 'http://127.0.0.1:8642' + request.path, headers=headers, data=body, allow_redirects=False) as upstream:
+        native_base = request.app.get('session_native_base','http://127.0.0.1:8642')
+        async with request.app['client'].request(request.method, native_base + request.path, headers=headers, data=body, allow_redirects=False) as upstream:
             out_headers = {'Content-Type':upstream.headers.get('Content-Type','application/json'), 'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}
             if 'Idempotency-Replayed' in upstream.headers:
                 out_headers['Idempotency-Replayed'] = upstream.headers['Idempotency-Replayed']
@@ -213,7 +232,7 @@ async def handle(request):
                 if not RUN.fullmatch('/v1/runs/' + run):
                     raise web.HTTPBadGateway()
                 # Resolve session before returning creation; replay also repairs lost ownership writes.
-                async with request.app['client'].get('http://127.0.0.1:8642/v1/runs/' + run, headers=headers) as status:
+                async with request.app['client'].get(native_base + '/v1/runs/' + run, headers=headers) as status:
                     if status.status != 200:
                         raise web.HTTPBadGateway()
                     snapshot = await status.json()

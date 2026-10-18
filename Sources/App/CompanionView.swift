@@ -321,6 +321,23 @@ struct RunHistoryView: View {
                         NavigationStack { ScrollView { RunCard().padding() }.navigationTitle("当前任务").navigationBarTitleDisplayMode(.inline).toolbar { Button("返回对话") { taskDetails = false } } }
                     }
             }
+            if let state = store.syncState[store.current?.id ?? UUID()], let chatID = store.current?.id, store.current?.sessionID != nil {
+                // Honest sync status: "live" only means latest check succeeded; assistant
+                // streaming tokens are not persisted by the server, so replies appear
+                // when turns finalize, not token-by-token.
+                HStack(spacing: 6) {
+                    switch state {
+                    case "busy": Image(systemName: "hourglass"); Text("原渠道正在进行对话，等待其完成后再继续").font(.caption)
+                    case "stale": Image(systemName: "bolt.slash"); Text("同步已过期，尚未核实最新消息").font(.caption)
+                    case "loading": ProgressView().controlSize(.mini); Text("正在检查更新…").font(.caption)
+                    default: Image(systemName: "checkmark.icloud"); Text("已同步至最新存储消息（流式输出未落库，回复在整轮结束后出现）").font(.caption2)
+                    }
+                }.foregroundStyle(state == "busy" ? .orange : .secondary).frame(maxWidth: .infinity).padding(6)
+                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("sync-state-\(state)")
+                    .accessibilityLabel("同步状态·\(state)")
+                    .id("\(state)-\(chatID)")
+            }
             if let error = store.error { HStack { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled); Button("关闭") { store.error = nil } }.padding(10) }
             ChatAttachmentPicker()
             HStack(alignment: .bottom) {
@@ -339,8 +356,10 @@ struct RunHistoryView: View {
                 draft += (draft.isEmpty ? "" : "\n") + text
             }
         }
-        .onChange(of: store.current?.id) { _ in voiceOpen = false }
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+        .onAppear { if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } }
+        .onDisappear { store.stopSync() }
+        .onChange(of: store.current?.id) { _ in voiceOpen = false; if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } else { store.stopSync() } }
+        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { store.stopSync(); dismiss() } } }
     }
 }
 

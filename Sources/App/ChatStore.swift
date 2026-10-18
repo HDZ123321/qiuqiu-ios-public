@@ -18,7 +18,7 @@ import HermesCore
     private var generation: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
     private var epoch = UUID()
-    private var foreground = false
+    var foreground = false
     private let api: HermesAPI
     private let saveChats: ([Chat]) throws -> Void
     private let sleep: (UInt64) async throws -> Void
@@ -72,7 +72,7 @@ import HermesCore
     }
     var canNavigate: Bool { true }
     var canEditConnection: Bool { !busy }
-    var canSend: Bool { !busy }
+    var canSend: Bool { !busy && (current?.serverSource == nil || syncState[current!.id] == "live") }
     func persist() {
         do { try saveChats(chats) } catch { self.error = "保存对话失败。" }
     }
@@ -82,6 +82,59 @@ import HermesCore
         try saveChats(saved)
         chats = saved; selected = id
         // No resume(), send(), run mutation or stop-target change on import.
+        if foreground { startSync(for: id) } // Ongoing-conversation sync while the chat stays open.
+    }
+    // MARK: - Ongoing-conversation sync (bounded, foreground, no inference scheduled)
+    @Published var syncState: [UUID: String] = [:] // chatID -> "live" | "busy" | "stale" | "loading"
+    private var syncTask: Task<Void, Never>?
+    static let syncInterval: UInt64 = 5_000_000_000
+    /// Foreground-only automatic refresh for an opened server session chat. Polls the
+    /// sync endpoint + stored history, merges new persisted user/assistant rows by
+    /// server message ID, and reflects server busy state. Never sends, never mutates a
+    /// pending/active run, pauses in background or when the chat is closed.
+    func startSync(for chatID: UUID) {
+        stopSync()
+        guard let chat = chats.first(where: { $0.id == chatID }), chat.sessionID != nil else { return }
+        let token = UUID(); syncEpoch = token
+        syncState[chatID] = "loading"
+        syncTask = Task { [weak self] in
+            while let self, !Task.isCancelled, self.foreground, self.syncEpoch == token {
+                await self.syncOnce(chatID: chatID, token: token)
+                do { try await Task.sleep(nanoseconds: Self.syncInterval) } catch { return }
+            }
+        }
+    }
+    func stopSync() {
+        syncEpoch = UUID()
+        syncTask?.cancel(); syncTask = nil
+    }
+    private var syncEpoch = UUID()
+    func syncOnce(chatID: UUID, token: UUID? = nil) async {
+        let myToken = token ?? syncEpoch
+        guard let i = chats.firstIndex(where: { $0.id == chatID }), let sessionID = chats[i].sessionID else { return }
+        // Never sync-mutate a chat with a local pending/active run: keep task/stop identity intact.
+        guard chats[i].run == nil || chats[i].run?.terminal == true else { syncState[chatID] = "stale"; return }
+        syncState[chatID] = "loading"
+        let configuration = settings
+        do {
+            let status = try await api.sessionSync(configuration, id: sessionID)
+            guard chats.contains(where: { $0.id == chatID }), !Task.isCancelled, syncEpoch == myToken, ServerSessionImport.scope(configuration) == ServerSessionImport.scope(settings) else { return }
+            do {
+                // User rows can appear while busy; assistant rows appear on finalization.
+                let pages = try await api.sessionTranscript(configuration, id: sessionID, profile: true)
+                guard let k = chats.firstIndex(where: { $0.id == chatID }), !Task.isCancelled, syncEpoch == myToken, ServerSessionImport.scope(configuration) == ServerSessionImport.scope(settings), chats[k].run?.terminal != false else { return }
+                if pages.allSatisfy({ $0.session_id == sessionID && $0.history == "stored_text" }) {
+                    var updated = chats[k]
+                    let before = updated.messages.count
+                    for page in pages { ServerSessionSyncEngine.merge(page, into: &updated) }
+                    if updated.messages.count != before { chats[k] = updated; persist() }
+                } else { throw ClientError.message("历史不可用") }
+                syncState[chatID] = status.busyOnServer ? "busy" : status.can_continue ? "live" : "stale"
+            }
+        } catch {
+            guard !Task.isCancelled, syncEpoch == myToken else { return }
+            syncState[chatID] = "stale" // Honest: last check failed; not "live".
+        }
     }
     func newChat() {
         guard !busy else { return }
@@ -132,6 +185,7 @@ import HermesCore
         DiagnosticLog.shared.record(.detach, id: activeRun?.replyID)
         foreground = false; epoch = UUID()
         generation?.cancel(); generation = nil; eventTask?.cancel(); eventTask = nil
+        stopSync() // Bounded sync pauses in background/closed; resumes on foreground.
         connected = false; persist() // Never stops the server.
     }
     private func reconcile(_ data: Data, chatID: UUID) throws {
@@ -140,7 +194,7 @@ import HermesCore
         try run.apply(data); chats[i].run = run
         if run.runID != nil { attachments = [] } // Clear only after admission is confirmed; retries retain exact durable bytes.
         if previous != run.status { DiagnosticLog.shared.record(.runState, id: run.replyID, texts: run.output?.count, milliseconds: Int(Date().timeIntervalSince(run.createdAt) * 1000), state: DiagnosticLog.State(rawValue: run.status) ?? .unknown) }
-        if let session = run.sessionID { chats[i].sessionID = session }
+        if let session = run.sessionID, chats[i].serverSource == nil { chats[i].sessionID = session }
         if let j = chats[i].messages.firstIndex(where: { $0.id == run.replyID }) {
             if let output = run.output { chats[i].messages[j].content = output }
             chats[i].messages[j].interrupted = run.terminal && run.status != "completed"
@@ -154,6 +208,8 @@ import HermesCore
         if ProcessInfo.processInfo.arguments.contains("--ui-busy") { return } // No network or credentials in UI fixtures.
         #endif
         foreground = true
+        // Restart bounded sync for the currently selected server session (foreground only).
+        if let chat = current, chat.sessionID != nil, chat.run?.terminal != false { startSync(for: chat.id) }
         guard generation == nil else { return }
         guard let chat = chats.first(where: { $0.run?.terminal == false }), let run = chat.run else { busy = false; return }
         DiagnosticLog.shared.record(.resume, id: run.replyID, state: DiagnosticLog.State(rawValue: run.status) ?? .unknown)
@@ -161,7 +217,7 @@ import HermesCore
         let token = UUID(); epoch = token
         let configuration = settings
         generation = Task {
-            defer { if epoch == token { generation = nil; connected = false; eventTask?.cancel(); eventTask = nil } }
+            defer { if epoch == token { generation = nil; connected = false; eventTask?.cancel(); eventTask = nil; if foreground, let current, current.run?.terminal != false { startSync(for: current.id) } } }
             while !Task.isCancelled && foreground && epoch == token {
                 do {
                     guard let i = chats.firstIndex(where: { $0.id == chat.id }), var pending = chats[i].run, !pending.terminal else { break }
@@ -212,6 +268,10 @@ import HermesCore
                     if Task.isCancelled || epoch != token { return }
                     DiagnosticLog.shared.record(.pollFallback, id: run.replyID, code: (error as NSError).code)
                     connected = false
+                    if let failure = error as? HTTPFailure, failure.status == 409 {
+                        self.error = "原会话正在处理或请求存在冲突；未创建新副本。保留同一提交编号，请稍后手动重连。"
+                        break // Never create another intent or spin on a native busy response.
+                    }
                     if failureStreak >= Self.maxAutoRetries {
                         DiagnosticLog.shared.record(.retryPaused, id: run.replyID, code: (error as NSError).code, state: DiagnosticLog.State(rawValue: run.status) ?? .unknown)
                         self.error = "连续 \(failureStreak) 次未核实服务器（最后代码 \((error as NSError).code)）。已暂停自动重试；任务保留在服务器，请稍后手动重连。"
@@ -283,7 +343,7 @@ import HermesCore
         DiagnosticLog.shared.record(.attachmentAdded,frames:attachments.count,texts:attachment.data.count)
     }
     func send(_ text: String) {
-        guard !busy, let id = selected, let i = chats.firstIndex(where: { $0.id == id }) else { return }
+        guard canSend, let id = selected, let i = chats.firstIndex(where: { $0.id == id }) else { return }
         let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !attachmentLoading, !typed.isEmpty || !attachments.isEmpty else { return }
         let content = typed.isEmpty ? "请阅读这些附件。" : typed
@@ -301,6 +361,7 @@ import HermesCore
             saved[i].messages.append(user); saved[i].messages.append(reply); saved[i].run = pending
             try saveChats(saved) // Do not send without a durable intent.
             DiagnosticLog.shared.record(.send, id: pending.replyID)
+            stopSync() // Local run owns this chat now; sync must not fight the active task.
             chats = saved; busy = true; toolProgress = ""; error = nil; resume()
         } catch { self.error = "无法开始任务：\(error.localizedDescription)" }
     }

@@ -10,6 +10,7 @@ struct ServerSessionsView: View {
     @State private var items: [ServerSessionItem] = []
     @State private var next: Int?
     @State private var total: Int?
+    @State private var kind = "conversations"
     @State private var readOnly: ServerSessionItem?
     @State private var readPages: [ServerSessionMessages] = []
     @State private var loaded = false
@@ -23,7 +24,12 @@ struct ServerSessionsView: View {
     var body: some View {
         List {
             Section {
-                Text("显示此服务器 default 配置的所有来源会话，包括微信、其他渠道、归档及内部任务。非 App 登记会话仅供阅读，不会向原渠道发送或更改其身份。")
+                Picker("会话范围", selection: $kind) {
+                    Text("真实对话").tag("conversations")
+                    Text("内部任务").tag("internal")
+                    Text("全部记录").tag("all")
+                }.onChange(of: kind) { _ in invalidate(); items=[]; next=nil; total=nil; loaded=false }
+                Text("显示 default 配置的真实对话，包括微信、其他渠道和归档。点击打开后授权 App 在原会话编号上继续，不新建副本；不会向原渠道主动推送。")
                 if let total { Text("已加载 \(items.count) / \(total) 条记录") }
                 Text("点击标题直接读取最新存储文字并打开，不会发送消息。原生标题优先；无标题时使用首条用户文字摘要，无法追溯仅保存在旧设备的改名。")
                 Button(loaded ? "重新获取列表" : "获取服务器会话") { Task { await fetch(reset: true) } }.disabled(loading || opening != nil)
@@ -71,8 +77,10 @@ struct ServerSessionsView: View {
             Button("取消", role: .cancel) { unavailable = nil }
             Button("仅按编号继续") {
                 guard let item = unavailable else { return }
-                do { try store.openServerSession(item, pages: []); unavailable = nil; open() }
-                catch { self.error = "无法保存本机会话，请重试。" }
+                Task {
+                    do { try await api.adoptSession(store.settings, id: item.id); try store.openServerSession(item, pages: []); unavailable = nil; open() }
+                    catch { self.error = "无法保存本机会话，请重试。" }
+                }
             }
         } message: {
             Text("服务器未存储可安全读取的文字，或原会话已转移。不会生成空白历史冒充原对话。可仅按编号准备继续，手动发送才会开始任务。")
@@ -92,12 +100,14 @@ struct ServerSessionsView: View {
         operation = Task { @MainActor in
             defer { if token == epoch { opening = nil; operation = nil } }
             do {
-                let pages = try await api.sessionTranscript(configuration, id: item.id, profile: !item.canContinue)
+                let pages = try await api.sessionTranscript(configuration, id: item.id, profile: true)
                 guard !Task.isCancelled, token == epoch, identity == ServerSessionImport.scope(store.settings) else { return }
                 if !item.canContinue { readPages = pages; readOnly = item; return }
                 let hasHistory = pages.allSatisfy { $0.history == "stored_text" } && pages.contains { !$0.items.isEmpty }
                 let hasLocal = store.chats.contains { $0.sessionID == item.id && !$0.messages.isEmpty && ($0.serverSource == nil || $0.serverSource?.scope == identity) }
                 guard hasHistory || hasLocal else { unavailable = item; return }
+                try await api.adoptSession(configuration, id: item.id)
+                guard !Task.isCancelled, token == epoch, identity == ServerSessionImport.scope(store.settings) else { return }
                 try store.openServerSession(item, pages: pages)
                 open()
             } catch {
@@ -112,7 +122,7 @@ struct ServerSessionsView: View {
         loading = true; error = nil
         defer { if token == epoch { loading = false } }
         do {
-            let data = try await api.sessionRead(configuration, cursor: reset ? nil : next, profile: true)
+            let data = try await api.sessionRead(configuration, cursor: reset ? nil : next, profile: true, kind: kind)
             guard !Task.isCancelled, token == epoch, ServerSessionImport.scope(configuration) == ServerSessionImport.scope(store.settings) else { return }
             let page = try JSONDecoder().decode(ServerSessionPage.self, from: data)
             var seen = Set<String>()

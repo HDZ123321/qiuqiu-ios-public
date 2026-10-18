@@ -139,7 +139,7 @@ final class HermesAPI {
         } while cursor != nil
         return pages
     }
-    func sessionRead(_ settings: ConnectionSettings, id: String? = nil, messages: Bool = false, cursor: Int? = nil, profile: Bool = false) async throws -> Data {
+    func sessionRead(_ settings: ConnectionSettings, id: String? = nil, messages: Bool = false, cursor: Int? = nil, profile: Bool = false, kind: String = "conversations") async throws -> Data {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
             if ProcessInfo.processInfo.arguments.contains("--ui-sessions-paged") {
@@ -165,6 +165,7 @@ final class HermesAPI {
         var req = try request(path, settings: settings)
         var components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "limit", value: "50")]
+        if profile && id == nil { components.queryItems?.append(URLQueryItem(name: "kind", value: kind)) }
         if let cursor { components.queryItems?.append(URLQueryItem(name: messages ? "offset" : "before", value: String(cursor))) }
         req.url = components.url; req.timeoutInterval = 25
         let correlation = UUID()
@@ -179,6 +180,32 @@ final class HermesAPI {
             DiagnosticLog.shared.record(.error, id: correlation, code: (error as NSError).code, route: messages ? .sessionMessages : .sessionList)
             throw error
         }
+    }
+    func adoptSession(_ settings: ConnectionSettings, id: String) async throws {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-sessions") { return }
+        #endif
+        guard !id.isEmpty, id.count <= 200, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { throw ClientError.message("无效会话编号。") }
+        var req = try request("profile/sessions/" + id + "/adopt", settings: settings)
+        req.httpMethod = "POST"; req.timeoutInterval = 20
+        let (_, response) = try await session.data(for: req)
+        try validate(response)
+    }
+    func sessionSync(_ settings: ConnectionSettings, id: String) async throws -> ServerSessionSync {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
+            let body = ProcessInfo.processInfo.arguments.contains("--ui-sync-active")
+                ? #"{"session_id":"fixture_owned","channel_active":true,"server_state":"running","last_checked":1,"can_continue":false}"#
+                : #"{"session_id":"fixture_owned","channel_active":false,"server_state":"completed","last_checked":1,"can_continue":true}"#
+            return try JSONDecoder().decode(ServerSessionSync.self, from: Data(body.utf8))
+        }
+        #endif
+        guard !id.isEmpty, id.count <= 200, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { throw ClientError.message("无效会话编号。") }
+        var req = try request("app/sessions/sync/" + id, settings: settings)
+        req.timeoutInterval = 20
+        let (data, response) = try await session.data(for: req)
+        try validate(response)
+        return try JSONDecoder().decode(ServerSessionSync.self, from: data)
     }
     func runEvents(_ settings: ConnectionSettings, runID: String, correlation: UUID? = nil, onEvent: @MainActor (SSEEvent) -> Void) async throws {
         try await runEventsRequest(request("runs/\(runID)/events", settings: settings), correlation: correlation, onEvent: onEvent)
