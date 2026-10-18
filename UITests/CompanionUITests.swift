@@ -43,10 +43,16 @@ final class CompanionUITests: XCTestCase {
         XCTAssertEqual(tableCopies.count, 2)
         tableCopies.element(boundBy: 1).tap(); XCTAssertTrue(app.buttons["已复制表格"].exists)
         screenshot("typography-wide-table-copy")
-        let tableScrolls = app.scrollViews.matching(NSPredicate(format: "identifier != %@", "message-reading-scroll"))
-        if tableScrolls.count > 0 { tableScrolls.element(boundBy: tableScrolls.count - 1).swipeLeft() }
+        let tableScroll = app.scrollViews["reply-table-horizontal"]
+        XCTAssertTrue(tableScroll.exists)
+        tableScroll.swipeLeft(); tableScroll.swipeLeft()
+        let lastCell = app.staticTexts["End of wide table"]
+        XCTAssertTrue(lastCell.isHittable)
         screenshot("typography-wide-table-horizontal-revealed")
         XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout: 3))
+        // Wait for rotation animation, not merely the orientation request.
+        Thread.sleep(forTimeInterval: 2)
         screenshot("typography-table-landscape-wide-viewport")
         XCUIDevice.shared.orientation = .portrait
         app.terminate()

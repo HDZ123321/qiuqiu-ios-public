@@ -63,7 +63,7 @@ struct MessageTableView: View {
             Button(copied ? "已复制表格" : "复制表格") { UIPasteboard.general.string = block.text; copied = true }.font(.caption).frame(minHeight: 44)
             ViewThatFits(in: .horizontal) {
                 grid.fixedSize(horizontal: true, vertical: false)
-                ScrollView(.horizontal) { grid.fixedSize(horizontal: true, vertical: false) }
+                ScrollView(.horizontal) { grid.fixedSize(horizontal: true, vertical: false) }.accessibilityIdentifier("reply-table-horizontal")
             }
         }.background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10)).accessibilityIdentifier("reply-table")
     }
