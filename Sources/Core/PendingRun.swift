@@ -8,7 +8,7 @@ public struct RunApproval: Codable, Equatable {
 }
 
 // The exact request bytes and key are persisted before the first POST. Never rebuild a retry.
-public struct PendingRun: Codable {
+public struct PendingRun: Codable, Equatable {
     public var key: String
     public var body: Data
     public var replyID: UUID
