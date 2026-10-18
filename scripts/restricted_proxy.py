@@ -248,7 +248,6 @@ def main():
     app['registry'] = Registry(PRIVATE/'app-runs.sqlite')
     app['active'] = 0
     # Deployment opt-in only: no new route enabled by merely updating source.
-    import os
     app['sessions_enabled'] = os.environ.get('QIUQIU_ENABLE_SESSIONS') == '1'
     if os.environ.get('QIUQIU_ENABLE_CRON') == '1':
         from cron import jobs
