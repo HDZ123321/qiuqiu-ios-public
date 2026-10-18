@@ -23,7 +23,7 @@ struct CompanionView: View {
                     Section("连接与诊断") { NavigationLink("连接设置 · 诊断日志") { SettingsView(store: store) } }
                     Section("外观") { Picker("主题", selection: $skin) { Text("液态玻璃").tag("glass"); Text("温暖灵动").tag("warm"); Text("安静耐看").tag("quiet") } }
                     Section("关于") {
-                        Text("球球 iOS · Build 14")
+                        Text("球球 iOS · Build 15")
                         Text("界面适配自 Hermes Android 3.8.8。原作 jeromeleeqy-hash；用户报告已获作者原作使用许可。保留来源，未使用第三方图标或字体。") .font(.footnote)
                         Link("原项目与来源", destination: URL(string: "https://github.com/jeromeleeqy-hash/Hermes-Android")!)
                         Text("本版文件仅限专用安全工作区；定时安排使用独立受限接口，未开放时不可用。不含完整语音会话/朗读及深度助理整理。聊天麦克风仅设备端转文字草稿，需手动发送。跟我说打开聊天。人物为原作静态资源；玻璃材质使用 iOS 原生适配。") .font(.footnote).foregroundStyle(.secondary)
@@ -307,8 +307,7 @@ struct RunHistoryView: View {
     @State private var voiceChatID: UUID?
     var body: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
+            ReadingMessageScroll(revision: "\(store.current?.messages.count ?? 0)-\(store.current?.messages.last?.content ?? "")", conversationID: store.current?.id) {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         if store.current?.messages.isEmpty != false { Text("跟球球说说，今天想做什么？").font(.title3).foregroundStyle(.secondary).padding(.vertical, 40) }
                         ForEach(store.current?.messages ?? []) { message in
@@ -326,9 +325,7 @@ struct RunHistoryView: View {
                                 }
                             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))
                         }
-                        Color.clear.frame(height: 1).id("bottom")
                     }.padding(18)
-                }.onChange(of: store.current?.messages.last?.content) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
             }
             if store.busy {
                 Button { taskDetails = true } label: {
@@ -385,6 +382,16 @@ struct RunHistoryView: View {
             }
         }
         .onAppear { if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } }
+        #if DEBUG && targetEnvironment(simulator)
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("--ui-typography-stream") else { return }
+            for index in 0..<30 {
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                guard !Task.isCancelled, let id = store.selected, let c = store.chats.firstIndex(where: { $0.id == id }), !store.chats[c].messages.isEmpty else { return }
+                store.chats[c].messages[0].content += "  let streamed\(index) = \(index)\n"
+            }
+        }
+        #endif
         .onDisappear { store.stopSync() }
         .onChange(of: store.current?.id) { _ in voiceOpen = false; if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } else { store.stopSync() } }
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { store.stopSync(); dismiss() } } }
@@ -398,28 +405,9 @@ struct MarkdownMessage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(MessageBlock.parse(content)) { block in
-                if let language = block.language {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack { Text(language.isEmpty ? "代码" : language).font(.caption); Spacer(); Button("复制代码") { UIPasteboard.general.string = block.text }.font(.caption).frame(minHeight: 44) }
-                        ScrollView(.horizontal) { Text(block.text).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
-                    }.padding(12).background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-                } else if block.kind == .table {
-                    ScrollView(.horizontal) {
-                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                            ForEach(Array(block.rows.enumerated()), id: \.offset) { row in
-                                GridRow { ForEach(Array(row.element.enumerated()), id: \.offset) { cell in
-                                    Text(cell.element).fontWeight(row.offset == 0 ? .bold : .regular).frame(minWidth: 90, alignment: .leading).textSelection(.enabled)
-                                } }
-                            }
-                        }.padding(12)
-                    }.background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10)).accessibilityIdentifier("reply-table")
-                } else if block.kind == .quote {
-                    HStack(alignment: .top) { Rectangle().fill(Color.accentColor).frame(width: 3); Text(block.text).textSelection(.enabled) }.fixedSize(horizontal: false, vertical: true).padding(8).background(Color.secondary.opacity(0.06)).accessibilityIdentifier("reply-quote")
-                } else {
-                    Text((try? AttributedString(markdown: block.text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(block.text)).textSelection(.enabled)
-                }
+                MessagePresentationBlock(block: block)
             }
-        }
+        }.font(.body).lineSpacing(4).frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.openURL, OpenURLAction { url in
             guard let safe = ReplyLink.external(url.absoluteString) else { return .discarded }
             externalURL = safe; return .handled

@@ -1,5 +1,11 @@
 name: Public source iOS candidate
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      typography_only:
+        description: 'Targeted message parser and UI gate before release regression'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -12,6 +18,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Isolated backend regressions with public native cron source
+        if: ${{ !inputs.typography_only }}
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/ci-venv"
@@ -35,7 +42,11 @@ jobs:
           export NO_PROXY=127.0.0.1,localhost
           export no_proxy=127.0.0.1,localhost
           curl --noproxy '*' --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 1 --connect-timeout 2 --max-time 3 http://127.0.0.1:18765/ready > /dev/null
-          swift test --skip LiveRunTests --skip WorkspaceLiveTests 2>&1 | tee evidence/swift-test.log
+          if [ "${{ inputs.typography_only }}" = true ]; then
+            swift test --filter 'MessageTypographyTests|ReplyPresentationTests' 2>&1 | tee evidence/swift-test.log
+          else
+            swift test --skip LiveRunTests --skip WorkspaceLiveTests 2>&1 | tee evidence/swift-test.log
+          fi
       - name: Generate Xcode project
         run: |
           brew install xcodegen
@@ -54,7 +65,14 @@ jobs:
           REPLY_PID=$!
           trap 'kill "$REPLY_PID" || true' EXIT
           curl --noproxy '*' --fail --silent --show-error --retry 60 --retry-all-errors --retry-delay 2 --connect-timeout 2 --max-time 3 http://127.0.0.1:18766/ready > /dev/null
-          xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO -only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testReplyImageFilePreviewShareAndAnswerDraft -only-testing:QiuQiuUITests/CompanionUITests/testReplyFormattingLargeTextAndApprovalConfirmation -only-testing:QiuQiuUITests/CompanionUITests/testOngoingServerSessionShowsHonestSyncStateWithoutSending -only-testing:QiuQiuUITests/CompanionUITests/testAllSourcePaginationLoadsOlderReadOnlyConversation -only-testing:QiuQiuUITests/CompanionUITests/testServerRowOneTapOpensStoredHistoryWithoutImportOrSend -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText test 2>&1 | tee evidence/ui-test.log
+          EXTRA=""
+          if [ "${{ inputs.typography_only }}" = true ]; then
+            EXTRA="-only-testing:QiuQiuUITests/CompanionUITests/testTypographyHeadingsListsLightAndDarkHugeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyCodeWrapExpandCopyAndTableContainment -only-testing:QiuQiuUITests/CompanionUITests/testTypographyStreamingReaderStaysPutAndCanFollow"
+          fi
+          if [ "${{ inputs.typography_only }}" != true ]; then
+            EXTRA="-only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testReplyImageFilePreviewShareAndAnswerDraft -only-testing:QiuQiuUITests/CompanionUITests/testReplyFormattingLargeTextAndApprovalConfirmation -only-testing:QiuQiuUITests/CompanionUITests/testOngoingServerSessionShowsHonestSyncStateWithoutSending -only-testing:QiuQiuUITests/CompanionUITests/testAllSourcePaginationLoadsOlderReadOnlyConversation -only-testing:QiuQiuUITests/CompanionUITests/testServerRowOneTapOpensStoredHistoryWithoutImportOrSend -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyHeadingsListsLightAndDarkHugeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyCodeWrapExpandCopyAndTableContainment -only-testing:QiuQiuUITests/CompanionUITests/testTypographyStreamingReaderStaysPutAndCanFollow"
+          fi
+          xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
         run: |
           set -euo pipefail
@@ -65,11 +83,11 @@ jobs:
           xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 14
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 15
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
-          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build14-unsigned.ipa Payload)
-          shasum -a 256 build/QiuQiu-Build14-unsigned.ipa | tee evidence/SHA256SUMS
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build15-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build15-unsigned.ipa | tee evidence/SHA256SUMS
       - name: Export screenshots and metadata on every outcome
         if: always()
         run: |
@@ -87,9 +105,9 @@ jobs:
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: QiuQiu-Build14-unsigned-ipa
+          name: QiuQiu-Build15-unsigned-ipa
           path: |
-            build/QiuQiu-Build14-unsigned.ipa
+            build/QiuQiu-Build15-unsigned.ipa
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error

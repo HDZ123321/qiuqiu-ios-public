@@ -1,6 +1,57 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testTypographyHeadingsListsLightAndDarkHugeText() {
+        for dark in [false, true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-replies", "--ui-typography"] + (dark ? ["--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] : [])
+            app.launch(); app.buttons["跟我说"].tap()
+            let title = app.staticTexts["一级标题 Heading"]
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            screenshot(dark ? "typography-headings-dark-huge" : "typography-headings-light")
+            for _ in 0..<4 { app.swipeUp(velocity: .slow) }
+            screenshot(dark ? "typography-lists-dark-huge" : "typography-lists-light")
+            XCTAssertTrue(app.buttons["完成"].isHittable)
+            app.terminate()
+        }
+    }
+    func testTypographyCodeWrapExpandCopyAndTableContainment() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies", "--ui-typography", "--ui-typography-code"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let copy = app.buttons["reply-code-copy"]
+        XCTAssertTrue(copy.waitForExistence(timeout: 5)); copy.tap()
+        XCTAssertTrue(app.buttons["已复制代码"].exists)
+        app.buttons["reply-code-wrap"].tap(); screenshot("typography-code-wrapped")
+        app.buttons["reply-code-wrap"].tap(); screenshot("typography-code-horizontal")
+        let expand = app.buttons["展开全部代码"]
+        for _ in 0..<10 { if expand.isHittable { break }; app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(expand.isHittable); expand.tap(); screenshot("typography-code-expanded")
+        app.terminate()
+        app.launchArguments = ["--ui-replies", "--ui-typography", "--ui-typography-table", "--ui-dark"]
+        app.launch(); app.buttons["跟我说"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == %@", "复制表格")).firstMatch.waitForExistence(timeout: 5))
+        screenshot("typography-table-short-wide-quote-dark")
+        let tableCopies = app.buttons.matching(NSPredicate(format: "label == %@", "复制表格"))
+        for _ in 0..<4 { if tableCopies.count > 1 && tableCopies.element(boundBy: 1).isHittable { break }; app.swipeUp(velocity: .slow) }
+        XCTAssertEqual(tableCopies.count, 2)
+        tableCopies.element(boundBy: 1).tap(); XCTAssertTrue(app.buttons["已复制表格"].exists)
+        screenshot("typography-wide-table-copy")
+        app.terminate()
+    }
+    func testTypographyStreamingReaderStaysPutAndCanFollow() {
+        let app = XCUIApplication(); app.launchArguments = ["--ui-replies", "--ui-typography", "--ui-typography-stream"]
+        app.launch(); app.buttons["跟我说"].tap()
+        // Let the first synthetic chunk follow, then explicitly read older text.
+        let viewport = app.scrollViews["message-reading-scroll"]
+        XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+        viewport.swipeDown(); viewport.swipeDown()
+        let indicator = app.buttons["message-new-content"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 8)); screenshot("typography-stream-paused-unclosed-fence")
+        indicator.tap()
+        XCTAssertFalse(indicator.exists); screenshot("typography-stream-follow-tail")
+    }
+
     func testReplyImageFilePreviewShareAndAnswerDraft() {
         let app = XCUIApplication(); app.launchArguments = ["--ui-replies"]; app.launch()
         app.buttons["跟我说"].tap()
