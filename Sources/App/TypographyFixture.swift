@@ -4,6 +4,7 @@ import Foundation
 enum TypographyFixture {
     static var text: String {
         let args = ProcessInfo.processInfo.arguments
+        if args.contains("--ui-selection") { return "前缀 TARGET 后缀" }
         if args.contains("--ui-typography-code") {
             return "# Code reading\n```swift\n  let original = \"" + String(repeating: "long line ", count: 16) + "\"\n\n" + (1...55).map { "  let value\($0) = \($0)" }.joined(separator: "\n") + "\n```\n\nAfter code remains visible."
         }

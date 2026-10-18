@@ -1,6 +1,30 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testReplyRangeSelectionCopiesOnlyTargetToComposer() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies", "--ui-typography", "--ui-selection"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let reply = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", "前缀 TARGET 后缀", "前缀 TARGET 后缀")).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 5))
+        // Physical long press at the middle word, not assigned selectedRange.
+        reply.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
+        screenshot("selection-native-range-menu")
+        let copy = app.buttons.matching(NSPredicate(format: "label IN %@", ["Copy", "复制"])).firstMatch
+        let menuCopy = app.menuItems.matching(NSPredicate(format: "label IN %@", ["Copy", "复制"])).firstMatch
+        if copy.waitForExistence(timeout: 3) { copy.tap() }
+        else if menuCopy.exists { menuCopy.tap() }
+        else { XCTFail("Native word-selection Copy action missing: \(app.debugDescription)"); return }
+        let composer = app.textFields.firstMatch
+        composer.tap(); composer.press(forDuration: 1.2)
+        let paste = app.buttons.matching(NSPredicate(format: "label IN %@", ["Paste", "粘贴"])).firstMatch
+        let menuPaste = app.menuItems.matching(NSPredicate(format: "label IN %@", ["Paste", "粘贴"])).firstMatch
+        if paste.waitForExistence(timeout: 3) { paste.tap() }
+        else if menuPaste.exists { menuPaste.tap() }
+        else { XCTFail("Native Paste action missing: \(app.debugDescription)"); return }
+        XCTAssertEqual(composer.value as? String, "TARGET")
+        screenshot("selection-target-pasted-exactly")
+    }
     func testTypographyHeadingsListsLightAndDarkHugeText() {
         for dark in [false, true] {
             let app = XCUIApplication()
