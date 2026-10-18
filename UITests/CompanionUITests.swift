@@ -8,7 +8,7 @@ final class CompanionUITests: XCTestCase {
         let reply = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", "前缀 TARGET 后缀", "前缀 TARGET 后缀")).firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 5))
         // Physical long press at the middle word, not assigned selectedRange.
-        reply.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
+        reply.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 70, dy: 10)).press(forDuration: 1.2)
         screenshot("selection-native-range-menu")
         let copy = app.buttons.matching(NSPredicate(format: "label IN %@", ["Copy", "复制"])).firstMatch
         let menuCopy = app.menuItems.matching(NSPredicate(format: "label IN %@", ["Copy", "复制"])).firstMatch
