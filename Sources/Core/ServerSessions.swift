@@ -44,7 +44,7 @@ public enum ServerSessionImport {
         // Never replace local messages, rename, archive, or active task. Imported
         // server IDs provide exact dedupe; legacy/native local chats have no safe
         // message mapping, so retain them intact instead of duplicating history.
-        let canMerge = existing == nil || (chat.serverSource?.scope == scope && (chat.messages.isEmpty || chat.messages.allSatisfy { $0.serverMessageID != nil }))
+        let canMerge = (chat.run == nil || chat.run?.terminal == true) && (existing == nil || (chat.serverSource?.scope == scope && (chat.messages.isEmpty || chat.messages.allSatisfy { $0.serverMessageID != nil })))
         var seen = Set(chat.messages.compactMap(\.serverMessageID))
         if complete && canMerge {
             for message in pages.flatMap(\.items) where ["user", "assistant"].contains(message.role) && seen.insert(message.id).inserted {
