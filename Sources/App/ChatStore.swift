@@ -354,7 +354,11 @@ import HermesCore
         DiagnosticLog.shared.record(.attachmentAdded,frames:attachments.count,texts:attachment.data.count)
     }
     func send(_ text: String) {
-        guard canSend, let id = selected, let i = chats.firstIndex(where: { $0.id == id }) else { return }
+        guard !busy, let id = selected, let i = chats.firstIndex(where: { $0.id == id }) else { return }
+        if let source = chats[i].serverSource {
+            guard source.scope == ServerSessionImport.scope(settings) else { error = "此服务器会话属于另一连接，请恢复原连接后继续。"; return }
+            guard canSend else { error = "原会话忙碌或同步状态待核实，暂不能发送。"; return }
+        }
         let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !attachmentLoading, !typed.isEmpty || !attachments.isEmpty else { return }
         let content = typed.isEmpty ? "请阅读这些附件。" : typed

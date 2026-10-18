@@ -74,6 +74,22 @@ class ProfileSessionsHTTP(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.post('/v1/profile/sessions/s_3/adopt',headers=self.headers)).status,403)
         self.assertEqual((await self.client.post('/v1/profile/sessions/foreign_profile/adopt',headers=self.headers)).status,404)
 
+    async def test_compression_lineage_includes_new_tip_but_excludes_forks(self):
+        self.db.execute('ALTER TABLE sessions ADD COLUMN end_reason TEXT')
+        self.db.execute('ALTER TABLE sessions ADD COLUMN model_config TEXT')
+        self.db.execute("UPDATE sessions SET end_reason='compression' WHERE id='s_0'")
+        self.db.execute("INSERT INTO sessions(id,source,profile_name,parent_session_id) VALUES('tip','weixin','default','s_0')")
+        self.db.execute("INSERT INTO sessions(id,source,profile_name,parent_session_id,model_config) VALUES('fork','weixin','default','s_0',?)",(json.dumps({'_branched_from':'s_0'}),))
+        for sid,text in [('s_0','original'),('tip','new finalized reply'),('fork','separate branch')]:
+            self.db.execute('INSERT INTO messages(session_id,role,content) VALUES(?,?,?)',(sid,'assistant',text))
+        self.db.commit()
+        for sid in ('s_0','tip'):
+            page=await self.get('/v1/profile/sessions/'+sid+'/messages')
+            self.assertEqual(page['session_id'],sid)
+            self.assertEqual([m['content'] for m in page['items']],['original','new finalized reply'])
+        page=await self.get('/v1/profile/sessions/fork/messages')
+        self.assertEqual([m['content'] for m in page['items']],['separate branch'])
+
     async def test_internal_records_remain_listed_but_prompts_never_export(self):
         self.db.execute("INSERT INTO messages(session_id,role,content,active,_compressed_summary) VALUES('s_3','user','private delegated prompt',1,0)")
         self.db.commit()

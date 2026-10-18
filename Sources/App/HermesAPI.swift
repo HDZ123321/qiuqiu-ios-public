@@ -148,7 +148,7 @@ final class HermesAPI {
                 }
                 let older = cursor != nil
                 let items: [[String:Any]] = older
-                    ? [["session_id":"fixture_readonly","created_seq":1,"run_count":0,"history":"explicit_fetch","title":"WeChat archived fixture","source":"weixin","can_continue":false,"archived":true,"hidden":false]]
+                    ? [["session_id":"fixture_readonly","created_seq":1,"run_count":0,"history":"explicit_fetch","title":"WeChat archived fixture","source":"weixin","can_continue":true,"archived":true,"hidden":false]]
                     : (2...51).reversed().map { n in ["session_id":"fixture_page_\(n)","created_seq":n,"run_count":1,"history":"explicit_fetch","title":"Fixture \(n)","source":"api_server","can_continue":true] }
                 return try JSONSerialization.data(withJSONObject: ["items":items,"total":51,"next_cursor":older ? NSNull() as Any : 2 as Any,"has_more":!older])
             }
@@ -195,8 +195,8 @@ final class HermesAPI {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
             let body = ProcessInfo.processInfo.arguments.contains("--ui-sync-active")
-                ? #"{"session_id":"fixture_owned","channel_active":true,"server_state":"running","last_checked":1,"can_continue":false}"#
-                : #"{"session_id":"fixture_owned","channel_active":false,"server_state":"completed","last_checked":1,"can_continue":true}"#
+                ? "{\"session_id\":\"\(id)\",\"channel_active\":true,\"server_state\":\"running\",\"last_checked\":1,\"can_continue\":false}"
+                : "{\"session_id\":\"\(id)\",\"channel_active\":false,\"server_state\":\"completed\",\"last_checked\":1,\"can_continue\":true}"
             return try JSONDecoder().decode(ServerSessionSync.self, from: Data(body.utf8))
         }
         #endif

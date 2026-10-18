@@ -20,9 +20,10 @@ final class CompanionUITests: XCTestCase {
         screenshot("all-source-older-page-wechat")
         row.tap()
         XCTAssertTrue(app.staticTexts["Read-only WeChat fixture"].waitForExistence(timeout:10))
-        XCTAssertTrue(app.staticTexts["来源：weixin · 只读"].exists)
-        XCTAssertFalse(app.buttons["发送"].exists)
-        screenshot("all-source-wechat-read-only")
+        XCTAssertTrue(app.buttons["完成"].exists)
+        XCTAssertTrue(app.buttons["发送"].exists)
+        XCTAssertFalse(app.buttons["发送"].isEnabled) // no draft; opening never sends
+        screenshot("all-source-original-wechat-continuation")
     }
     func testServerRowOneTapOpensStoredHistoryWithoutImportOrSend() {
         let app=XCUIApplication(); app.launchArguments=["--ui-sessions"]; app.launch()
