@@ -319,7 +319,7 @@ struct RunHistoryView: View {
                                 if message.content.isEmpty { Text(store.current?.run?.terminal == false ? "等待球球回复…" : "未收到回复（已停止或请求失败）").foregroundStyle(.secondary) }
                                 else { MarkdownMessage(content: message.content) }
                                 if message.role == "assistant", store.current?.run?.terminal != false {
-                                    Button("回答 / 补充这条消息") { draft = ""; answerOpen = true }.buttonStyle(.bordered).accessibilityIdentifier("reply-answer")
+                                    Button("回答 / 补充这条消息") { answer = draft; answerOpen = true }.buttonStyle(.bordered).accessibilityIdentifier("reply-answer")
                                 }
                                 if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
                                     ReplyArtifactsView(runID: runID, settings: store.settings)

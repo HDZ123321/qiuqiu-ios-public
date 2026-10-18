@@ -17,7 +17,8 @@ async def main():
         from unittest.mock import patch
         import restricted_proxy as proxy
         from workspace_bridge import Workspace
-        native=APIServerAdapter(PlatformConfig(extra={'key':'native-fixture','model_name':'fixture'}))
+        with patch.object(APIServerAdapter,'_resolve_model_name',return_value='fixture'):
+            native=APIServerAdapter(PlatformConfig(extra={'key':'native-fixture','model_name':'fixture'}))
         native._run_approval_sessions['run_fixture']='synthetic-session'
         native._set_run_status('run_fixture','waiting_for_approval',approval={'request_id':'request_fixture','choices':['once','deny']})
         app=web.Application(); app.router.add_post('/v1/runs/{run_id}/approval',native._handle_run_approval); app.router.add_get('/v1/runs/{run_id}',native._handle_get_run)

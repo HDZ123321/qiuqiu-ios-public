@@ -17,9 +17,18 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("reply-generated-file-share")
         copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
         for _ in 0..<5 { if app.buttons["reply-answer"].isHittable { break }; app.swipeDown() }
+        let composer = app.textFields.firstMatch
+        composer.tap(); composer.typeText("Preserve existing draft")
+        app.buttons["reply-answer"].tap()
+        app.buttons["取消"].tap()
+        XCTAssertEqual(composer.value as? String, "Preserve existing draft")
         app.buttons["reply-answer"].tap()
         XCTAssertTrue(app.textFields["answer-text"].waitForExistence(timeout: 5))
-        app.textFields["answer-text"].tap(); app.textFields["answer-text"].typeText("My explicit answer")
+        app.textFields["answer-text"].tap()
+        let field = app.textFields["answer-text"]
+        field.press(forDuration: 1)
+        if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap(); field.typeText("My explicit answer") }
+        else { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "Preserve existing draft".count) + "My explicit answer") }
         screenshot("reply-answer-native-contract-limit")
         app.buttons["answer-draft"].tap()
         XCTAssertEqual(app.textFields.firstMatch.value as? String, "My explicit answer")
