@@ -5,6 +5,24 @@ final class CompanionUITests: XCTestCase {
         let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         image.name = name; image.lifetime = .keepAlways; add(image)
     }
+    func testServerRowOneTapOpensStoredHistoryWithoutImportOrSend() {
+        let app=XCUIApplication(); app.launchArguments=["--ui-sessions"]; app.launch()
+        app.tabBars.buttons["回看"].tap()
+        app.buttons["server-sessions-navigation"].tap()
+        app.buttons["获取服务器会话"].tap()
+        let row=app.buttons["server-session-fixture_owned"]
+        XCTAssertTrue(row.waitForExistence(timeout:10))
+        XCTAssertTrue(app.staticTexts["Garden planning"].exists)
+        screenshot("server-session-real-title")
+        row.tap()
+        XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.staticTexts["Historical garden question"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["Historical garden answer"].exists)
+        XCTAssertFalse(app.buttons["读取真实历史文字"].exists)
+        XCTAssertFalse(app.buttons["打开本机会话 / 准备继续"].exists)
+        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        screenshot("server-one-tap-history-open")
+    }
     func testVoiceEntryCancelDoesNotSendOrReplaceDraft() {
         let app = XCUIApplication(); app.launchArguments = ["--ui-history"]; app.launch()
         app.buttons["跟我说"].tap()

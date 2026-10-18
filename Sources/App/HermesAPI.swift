@@ -124,7 +124,30 @@ final class HermesAPI {
         try validate(response)
         return data
     }
+    func sessionTranscript(_ settings: ConnectionSettings, id: String) async throws -> [ServerSessionMessages] {
+        var pages: [ServerSessionMessages] = [], cursor: Int?, seen = Set<Int>(), bytes = 0
+        repeat {
+            try Task.checkCancellation()
+            let data = try await sessionRead(settings,id:id,messages:true,cursor:cursor)
+            bytes += data.count
+            guard bytes <= 16*1024*1024, pages.count < 1000 else { throw ClientError.message("历史超出安全读取上限，未导入部分历史。") }
+            let page = try JSONDecoder().decode(ServerSessionMessages.self,from:data)
+            guard page.session_id == id, ["stored_text","unavailable"].contains(page.history) else { throw ClientError.message("会话身份不匹配。") }
+            pages.append(page)
+            cursor = page.next_offset
+            if let cursor { guard cursor > 0, seen.insert(cursor).inserted else { throw ClientError.message("历史分页无进展。") } }
+        } while cursor != nil
+        return pages
+    }
     func sessionRead(_ settings: ConnectionSettings, id: String? = nil, messages: Bool = false, cursor: Int? = nil) async throws -> Data {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
+            if messages {
+                return Data(#"{"session_id":"fixture_owned","history":"stored_text","items":[{"id":"1","role":"user","content":"Historical garden question"},{"id":"2","role":"assistant","content":"Historical garden answer"}],"next_offset":null}"#.utf8)
+            }
+            return Data(#"{"items":[{"session_id":"fixture_owned","created_seq":1,"run_count":1,"history":"explicit_fetch","title":"Garden planning","title_source":"native"}],"next_cursor":null}"#.utf8)
+        }
+        #endif
         if let id {
             guard !id.isEmpty, id.count <= 200, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { throw ClientError.message("无效会话编号。") }
         }

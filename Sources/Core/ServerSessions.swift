@@ -6,6 +6,9 @@ public struct ServerSessionItem: Decodable, Identifiable {
     public let created_seq: Int
     public let run_count: Int
     public let history: String
+    public let title: String?
+    public let title_source: String?
+    public var displayTitle: String { title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? title! : "未命名会话" }
     public var id: String { session_id }
 }
 public struct ServerSessionPage: Decodable {
@@ -33,23 +36,28 @@ public enum ServerSessionImport {
         guard !item.session_id.isEmpty, item.session_id.count <= 200,
               item.session_id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }),
               pages.allSatisfy({ $0.session_id == item.session_id }) else { throw ClientError.message("会话身份不匹配。") }
-        // Existing local data always wins, including renamed/archived/edited chats.
-        // Untagged legacy matches are deliberately reused, never overwritten.
-        if let existing = chats.first(where: { $0.sessionID == item.session_id && ($0.serverSource?.scope == scope || $0.serverSource == nil) }) { return existing.id }
-        var chat = Chat()
-        chat.sessionID = item.session_id
-        chat.customTitle = "服务器会话 · \(item.created_seq)"
-        var seen = Set<String>()
         let complete = !pages.isEmpty && pages.allSatisfy({ $0.history == "stored_text" }) && pages.last?.next_offset == nil
-        for page in complete ? pages : [] {
-            for message in page.items where ["user", "assistant"].contains(message.role) && seen.insert(message.id).inserted {
-                chat.messages.append(ChatMessage(role: message.role, content: message.content))
+        let existing = chats.firstIndex(where: { $0.sessionID == item.session_id && ($0.serverSource?.scope == scope || $0.serverSource == nil) })
+        var chat = existing.map { chats[$0] } ?? Chat()
+        chat.sessionID = item.session_id
+        if existing == nil { chat.customTitle = item.title }
+        // Never replace local messages, rename, archive, or active task. Imported
+        // server IDs provide exact dedupe; legacy/native local chats have no safe
+        // message mapping, so retain them intact instead of duplicating history.
+        let canMerge = existing == nil || (chat.serverSource?.scope == scope && (chat.messages.isEmpty || chat.messages.allSatisfy { $0.serverMessageID != nil }))
+        var seen = Set(chat.messages.compactMap(\.serverMessageID))
+        if complete && canMerge {
+            for message in pages.flatMap(\.items) where ["user", "assistant"].contains(message.role) && seen.insert(message.id).inserted {
+                var local = ChatMessage(role: message.role, content: message.content)
+                local.serverMessageID = message.id
+                chat.messages.append(local)
             }
         }
-        let history = complete ? "stored_text" : pages.contains(where: { $0.history == "unavailable" }) ? "unavailable" : "not_fetched"
-        chat.serverSource = ServerSessionSource(scope: scope, history: history)
-        // Append: an in-flight polling iteration may retain an existing chat index.
-        chats.append(chat)
+        if existing == nil || canMerge {
+            let history = complete ? "stored_text" : pages.contains(where: { $0.history == "unavailable" }) ? "unavailable" : "not_fetched"
+            chat.serverSource = ServerSessionSource(scope: scope, history: history)
+        }
+        if let existing { chats[existing] = chat } else { chats.append(chat) }
         return chat.id
     }
 }

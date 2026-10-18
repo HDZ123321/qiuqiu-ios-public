@@ -44,6 +44,9 @@ import HermesCore
            let key=ProcessInfo.processInfo.environment["QIU_FILE_KEY"] {
             settings.serverURL=url; settings.bearer=key
         }
+        if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
+            chats = [Chat()]; selected = chats[0].id; error = nil
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-history") {
             let documents=FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0]
             try? FileManager.default.createDirectory(at:documents,withIntermediateDirectories:true)

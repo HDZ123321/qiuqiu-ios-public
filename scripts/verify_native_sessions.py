@@ -26,6 +26,8 @@ async def main():
         native._session_db = db
         app = web.Application()
         app.router.add_get('/api/sessions/{session_id}/messages',native._handle_session_messages)
+        app.router.add_get('/api/sessions/{session_id}',native._handle_get_session)
+        db.set_session_title('owned','Synthetic original title')
         async with TestServer(app) as server, ClientSession() as upstream:
             restricted = web.Application()
             restricted['app_key']='app-fixture'; restricted['native_key']='native-fixture'
@@ -37,6 +39,14 @@ async def main():
             restricted.router.add_route('*','/{tail:.*}',proxy.handle)
             async with TestClient(TestServer(restricted)) as client:
                 headers={'Authorization':'Bearer app-fixture'}
+                titles=await (await client.get('/v1/app/sessions',headers=headers)).json()
+                assert len(titles['items'])==1
+                assert titles['items'][0]['title']=='Synthetic original title'
+                assert titles['items'][0]['title_source']=='native'
+                db.set_session_title('owned','')
+                fallback=await (await client.get('/v1/app/sessions',headers=headers)).json()
+                assert fallback['items'][0]['title']=='synthetic stored question'
+                assert fallback['items'][0]['title_source']=='first_user'
                 response=await client.get('/v1/app/sessions/owned/messages',headers=headers)
                 assert response.status==200, response.status
                 payload=await response.json()

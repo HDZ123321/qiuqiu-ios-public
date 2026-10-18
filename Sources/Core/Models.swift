@@ -26,6 +26,7 @@ public struct ChatMessage: Codable, Identifiable {
     public var content: String
     public var interrupted: Bool?
     public var attachmentNames: [String]?
+    public var serverMessageID: String?
     public init(role: String, content: String) { id = UUID(); self.role = role; self.content = content }
 }
 public struct Chat: Codable, Identifiable {
