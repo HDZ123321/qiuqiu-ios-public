@@ -9,6 +9,9 @@ struct ServerSessionsView: View {
     let open: () -> Void
     @State private var items: [ServerSessionItem] = []
     @State private var next: Int?
+    @State private var total: Int?
+    @State private var readOnly: ServerSessionItem?
+    @State private var readPages: [ServerSessionMessages] = []
     @State private var loaded = false
     @State private var loading = false
     @State private var opening: String?
@@ -20,7 +23,8 @@ struct ServerSessionsView: View {
     var body: some View {
         List {
             Section {
-                Text("仅显示当前 App 专用入口登记的会话，不包括微信等其他渠道。同一入口和令牌可能包含其他安装的会话。")
+                Text("显示此服务器 default 配置的所有来源会话，包括微信、其他渠道、归档及内部任务。非 App 登记会话仅供阅读，不会向原渠道发送或更改其身份。")
+                if let total { Text("已加载 \(items.count) / \(total) 条记录") }
                 Text("点击标题直接读取最新存储文字并打开，不会发送消息。原生标题优先；无标题时使用首条用户文字摘要，无法追溯仅保存在旧设备的改名。")
                 Button(loaded ? "重新获取列表" : "获取服务器会话") { Task { await fetch(reset: true) } }.disabled(loading || opening != nil)
                 if loading { ProgressView() }
@@ -31,7 +35,7 @@ struct ServerSessionsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(localTitle(item) ?? item.displayTitle).font(.headline)
-                            Text("App 登记 · \(item.run_count) 次任务").font(.caption).foregroundStyle(.secondary)
+                            Text("\(item.sourceLabel) · \(item.canContinue ? "App 可继续" : "只读")\(item.archived == true ? " · 已归档" : "")\(item.hidden == true ? " · 内部/隐藏" : "")").font(.caption).foregroundStyle(.secondary)
                             if item.title_source == "first_user" { Text("首条用户文字摘要").font(.caption2).foregroundStyle(.secondary) }
                         }
                         Spacer()
@@ -40,11 +44,29 @@ struct ServerSessionsView: View {
                 }.disabled(opening != nil || loading)
                     .accessibilityIdentifier("server-session-" + item.id)
             }
-            if loaded && items.isEmpty { Text("此 App 入口尚无登记会话。") }
+            if loaded && items.isEmpty { Text("此 default 配置尚无会话记录。") }
             if next != nil { Button("加载更多会话") { Task { await fetch(reset: false) } }.disabled(loading || opening != nil) }
         }.navigationTitle("服务器会话")
         .onChange(of: store.settings) { _ in invalidate(); items = []; next = nil; loaded = false }
         .onDisappear { invalidate() }
+        .sheet(item: $readOnly) { item in
+            NavigationStack {
+                List {
+                    Section {
+                        Text("来源：\(item.sourceLabel) · 只读")
+                        Text("不会改写原会话、登记写权限或向原渠道发送。内部任务记录也保留在列表中；隐藏生命周期、工具和系统内容不导出。")
+                        if readPages.allSatisfy({ $0.items.isEmpty }) { Text("没有可安全显示的用户/助手文字。") }
+                    }.font(.footnote)
+                    ForEach(readPages.flatMap(\.items), id: \.id) { message in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(message.role == "user" ? "用户" : "助手").font(.caption).foregroundStyle(.secondary)
+                            Text(message.content).textSelection(.enabled)
+                        }
+                    }
+                }.navigationTitle(item.displayTitle)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { readOnly = nil; readPages = [] } } }
+            }
+        }
         .alert("历史文字不可用", isPresented: Binding(get: { unavailable != nil }, set: { if !$0 { unavailable = nil } })) {
             Button("取消", role: .cancel) { unavailable = nil }
             Button("仅按编号继续") {
@@ -70,8 +92,9 @@ struct ServerSessionsView: View {
         operation = Task { @MainActor in
             defer { if token == epoch { opening = nil; operation = nil } }
             do {
-                let pages = try await api.sessionTranscript(configuration, id: item.id)
+                let pages = try await api.sessionTranscript(configuration, id: item.id, profile: !item.canContinue)
                 guard !Task.isCancelled, token == epoch, identity == ServerSessionImport.scope(store.settings) else { return }
+                if !item.canContinue { readPages = pages; readOnly = item; return }
                 let hasHistory = pages.allSatisfy { $0.history == "stored_text" } && pages.contains { !$0.items.isEmpty }
                 let hasLocal = store.chats.contains { $0.sessionID == item.id && !$0.messages.isEmpty && ($0.serverSource == nil || $0.serverSource?.scope == identity) }
                 guard hasHistory || hasLocal else { unavailable = item; return }
@@ -89,12 +112,12 @@ struct ServerSessionsView: View {
         loading = true; error = nil
         defer { if token == epoch { loading = false } }
         do {
-            let data = try await api.sessionRead(configuration, cursor: reset ? nil : next)
+            let data = try await api.sessionRead(configuration, cursor: reset ? nil : next, profile: true)
             guard !Task.isCancelled, token == epoch, ServerSessionImport.scope(configuration) == ServerSessionImport.scope(store.settings) else { return }
             let page = try JSONDecoder().decode(ServerSessionPage.self, from: data)
             var seen = Set<String>()
             items = ((reset ? [] : items) + page.items).filter { seen.insert($0.id).inserted }
-            next = page.next_cursor; loaded = true
+            next = page.next_cursor; total = page.total; loaded = true
         } catch {
             if token == epoch { self.error = "未能读取会话（代码 \((error as NSError).code)）。请重试。" }
         }

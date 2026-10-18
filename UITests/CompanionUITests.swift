@@ -5,6 +5,25 @@ final class CompanionUITests: XCTestCase {
         let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         image.name = name; image.lifetime = .keepAlways; add(image)
     }
+    func testAllSourcePaginationLoadsOlderReadOnlyConversation() {
+        let app=XCUIApplication(); app.launchArguments=["--ui-sessions","--ui-sessions-paged"]; app.launch()
+        app.tabBars.buttons["回看"].tap()
+        app.buttons["server-sessions-navigation"].tap()
+        app.buttons["获取服务器会话"].tap()
+        XCTAssertTrue(app.staticTexts["已加载 50 / 51 条记录"].waitForExistence(timeout:10))
+        let more=app.buttons["加载更多会话"]
+        for _ in 0..<35 { if more.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(more.isHittable); more.tap()
+        let row=app.buttons["server-session-fixture_readonly"]
+        for _ in 0..<5 { if row.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(row.waitForExistence(timeout:5)); XCTAssertTrue(row.isHittable)
+        screenshot("all-source-older-page-wechat")
+        row.tap()
+        XCTAssertTrue(app.staticTexts["Read-only WeChat fixture"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.staticTexts["来源：weixin · 只读"].exists)
+        XCTAssertFalse(app.buttons["发送"].exists)
+        screenshot("all-source-wechat-read-only")
+    }
     func testServerRowOneTapOpensStoredHistoryWithoutImportOrSend() {
         let app=XCUIApplication(); app.launchArguments=["--ui-sessions"]; app.launch()
         app.tabBars.buttons["回看"].tap()

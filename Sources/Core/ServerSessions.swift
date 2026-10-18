@@ -8,12 +8,19 @@ public struct ServerSessionItem: Decodable, Identifiable {
     public let history: String
     public let title: String?
     public let title_source: String?
+    public let source: String?
+    public let archived: Bool?
+    public let hidden: Bool?
+    public let can_continue: Bool?
+    public var canContinue: Bool { can_continue ?? true }
+    public var sourceLabel: String { source ?? "App" }
     public var displayTitle: String { title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? title! : "未命名会话" }
     public var id: String { session_id }
 }
 public struct ServerSessionPage: Decodable {
     public let items: [ServerSessionItem]
     public let next_cursor: Int?
+    public let total: Int?
 }
 public struct ServerSessionMessages: Decodable {
     public struct Item: Decodable { public let id: String; public let role: String; public let content: String }
@@ -33,6 +40,7 @@ public enum ServerSessionImport {
         return SHA256.hash(data: Data((endpoint + "\u{0}" + settings.bearer).utf8)).map { String(format: "%02x", $0) }.joined()
     }
     @discardableResult public static func open(_ item: ServerSessionItem, scope: String, chats: inout [Chat], pages: [ServerSessionMessages] = []) throws -> UUID {
+        guard item.canContinue else { throw ClientError.message("此来源会话仅供阅读，不能从 App 改写或向原渠道发送。") }
         guard !item.session_id.isEmpty, item.session_id.count <= 200,
               item.session_id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }),
               pages.allSatisfy({ $0.session_id == item.session_id }) else { throw ClientError.message("会话身份不匹配。") }

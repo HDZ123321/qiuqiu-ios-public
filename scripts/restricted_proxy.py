@@ -127,6 +127,9 @@ def prepare_attachments(payload, workspace):
     return result
 
 async def handle(request):
+    if request.path == '/v1/profile/sessions' or request.path.startswith('/v1/profile/sessions/'):
+        from profile_session_bridge import handle as profile_handle
+        return await profile_handle(request)
     if request.path == '/v1/app/sessions' or request.path.startswith('/v1/app/sessions/'):
         from session_bridge import handle as session_handle
         return await session_handle(request)
@@ -249,6 +252,9 @@ def main():
     app['active'] = 0
     # Deployment opt-in only: no new route enabled by merely updating source.
     app['sessions_enabled'] = os.environ.get('QIUQIU_ENABLE_SESSIONS') == '1'
+    if os.environ.get('QIUQIU_ENABLE_PROFILE_READ') == '1':
+        # Operator-selected DB only; clients cannot choose another path/profile.
+        app['profile_sessions_db'] = Path(os.environ['QIUQIU_PROFILE_READ_DB'])
     if os.environ.get('QIUQIU_ENABLE_CRON') == '1':
         from cron import jobs
         from cron_bridge import CronBridge

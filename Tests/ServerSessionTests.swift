@@ -3,6 +3,16 @@ import XCTest
 @testable import HermesTransport
 
 final class ServerSessionTests: XCTestCase {
+    func testNonAppProfileSessionCannotBeImportedAsWritableChat() throws {
+        let item = try JSONDecoder().decode(ServerSessionItem.self, from: Data(#"{"session_id":"wechat_read_only","created_seq":1,"run_count":0,"history":"explicit_fetch","source":"weixin","can_continue":false,"archived":true,"hidden":false}"#.utf8))
+        XCTAssertFalse(item.canContinue)
+        XCTAssertEqual(item.sourceLabel,"weixin")
+        XCTAssertEqual(item.displayTitle,"未命名会话")
+        var chats:[Chat]=[]
+        XCTAssertThrowsError(try ServerSessionImport.open(item,scope:"a",chats:&chats))
+        XCTAssertTrue(chats.isEmpty)
+    }
+
     func testActiveImportedTaskNeverReceivesDuplicateServerMessages() throws {
         let item = try JSONDecoder().decode(ServerSessionItem.self,from:Data(#"{"session_id":"s_a","created_seq":1,"run_count":1,"history":"explicit_fetch"}"#.utf8))
         let page = try JSONDecoder().decode(ServerSessionMessages.self,from:Data(#"{"session_id":"s_a","history":"stored_text","items":[{"id":"1","role":"user","content":"question"}],"next_offset":null}"#.utf8))

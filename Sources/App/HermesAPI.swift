@@ -124,11 +124,11 @@ final class HermesAPI {
         try validate(response)
         return data
     }
-    func sessionTranscript(_ settings: ConnectionSettings, id: String) async throws -> [ServerSessionMessages] {
+    func sessionTranscript(_ settings: ConnectionSettings, id: String, profile: Bool = false) async throws -> [ServerSessionMessages] {
         var pages: [ServerSessionMessages] = [], cursor: Int?, seen = Set<Int>(), bytes = 0
         repeat {
             try Task.checkCancellation()
-            let data = try await sessionRead(settings,id:id,messages:true,cursor:cursor)
+            let data = try await sessionRead(settings,id:id,messages:true,cursor:cursor,profile:profile)
             bytes += data.count
             guard bytes <= 16*1024*1024, pages.count < 1000 else { throw ClientError.message("历史超出安全读取上限，未导入部分历史。") }
             let page = try JSONDecoder().decode(ServerSessionMessages.self,from:data)
@@ -139,9 +139,19 @@ final class HermesAPI {
         } while cursor != nil
         return pages
     }
-    func sessionRead(_ settings: ConnectionSettings, id: String? = nil, messages: Bool = false, cursor: Int? = nil) async throws -> Data {
+    func sessionRead(_ settings: ConnectionSettings, id: String? = nil, messages: Bool = false, cursor: Int? = nil, profile: Bool = false) async throws -> Data {
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--ui-sessions") {
+            if ProcessInfo.processInfo.arguments.contains("--ui-sessions-paged") {
+                if messages {
+                    return try JSONSerialization.data(withJSONObject: ["session_id":id ?? "fixture_readonly","history":"stored_text","items":[["id":"read1","role":"user","content":"Read-only WeChat fixture"]],"next_offset":NSNull()])
+                }
+                let older = cursor != nil
+                let items: [[String:Any]] = older
+                    ? [["session_id":"fixture_readonly","created_seq":1,"run_count":0,"history":"explicit_fetch","title":"WeChat archived fixture","source":"weixin","can_continue":false,"archived":true,"hidden":false]]
+                    : (2...51).reversed().map { n in ["session_id":"fixture_page_\(n)","created_seq":n,"run_count":1,"history":"explicit_fetch","title":"Fixture \(n)","source":"api_server","can_continue":true] }
+                return try JSONSerialization.data(withJSONObject: ["items":items,"total":51,"next_cursor":older ? NSNull() as Any : 2 as Any,"has_more":!older])
+            }
             if messages {
                 return Data(#"{"session_id":"fixture_owned","history":"stored_text","items":[{"id":"1","role":"user","content":"Historical garden question"},{"id":"2","role":"assistant","content":"Historical garden answer"}],"next_offset":null}"#.utf8)
             }
@@ -151,7 +161,7 @@ final class HermesAPI {
         if let id {
             guard !id.isEmpty, id.count <= 200, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { throw ClientError.message("无效会话编号。") }
         }
-        let path = "app/sessions" + (id.map { "/" + $0 } ?? "") + (messages ? "/messages" : "")
+        let path = (profile ? "profile/sessions" : "app/sessions") + (id.map { "/" + $0 } ?? "") + (messages ? "/messages" : "")
         var req = try request(path, settings: settings)
         var components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "limit", value: "50")]
