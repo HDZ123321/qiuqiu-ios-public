@@ -40,7 +40,7 @@ public struct RunHistoryStore {
     let limit: Int
     public init(directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("RunHistory"), limit: Int = 200) {
         self.directory = directory
-        self.limit = max(10, limit)
+        self.limit = max(1, limit)
     }
     var entries: [Entry] { (try? load()) ?? [] }
     public func load() throws -> [Entry] {
