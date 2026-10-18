@@ -70,7 +70,7 @@ jobs:
             EXTRA="-only-testing:QiuQiuUITests/CompanionUITests/testTypographyHeadingsListsLightAndDarkHugeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyCodeWrapExpandCopyAndTableContainment -only-testing:QiuQiuUITests/CompanionUITests/testTypographyStreamingReaderStaysPutAndCanFollow"
           fi
           if [ "${{ inputs.typography_only }}" != true ]; then
-            EXTRA="-only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testReplyImageFilePreviewShareAndAnswerDraft -only-testing:QiuQiuUITests/CompanionUITests/testReplyFormattingLargeTextAndApprovalConfirmation -only-testing:QiuQiuUITests/CompanionUITests/testOngoingServerSessionShowsHonestSyncStateWithoutSending -only-testing:QiuQiuUITests/CompanionUITests/testAllSourcePaginationLoadsOlderReadOnlyConversation -only-testing:QiuQiuUITests/CompanionUITests/testServerRowOneTapOpensStoredHistoryWithoutImportOrSend -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyHeadingsListsLightAndDarkHugeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyCodeWrapExpandCopyAndTableContainment -only-testing:QiuQiuUITests/CompanionUITests/testTypographyStreamingReaderStaysPutAndCanFollow"
+            EXTRA="-only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testReplyRangeSelectionCopiesOnlyTargetToComposer -only-testing:QiuQiuUITests/CompanionUITests/testReplyImageFilePreviewShareAndAnswerDraft -only-testing:QiuQiuUITests/CompanionUITests/testReplyFormattingLargeTextAndApprovalConfirmation -only-testing:QiuQiuUITests/CompanionUITests/testOngoingServerSessionShowsHonestSyncStateWithoutSending -only-testing:QiuQiuUITests/CompanionUITests/testAllSourcePaginationLoadsOlderReadOnlyConversation -only-testing:QiuQiuUITests/CompanionUITests/testServerRowOneTapOpensStoredHistoryWithoutImportOrSend -only-testing:QiuQiuUITests/CompanionUITests/testVoiceEntryCancelDoesNotSendOrReplaceDraft -only-testing:QiuQiuUITests/CompanionUITests/testNavigationManagementAndKeyboard -only-testing:QiuQiuUITests/CompanionUITests/testBusyAllowsHistoryTasksSettingsAndExportInDarkLargeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyHeadingsListsLightAndDarkHugeText -only-testing:QiuQiuUITests/CompanionUITests/testTypographyCodeWrapExpandCopyAndTableContainment -only-testing:QiuQiuUITests/CompanionUITests/testTypographyStreamingReaderStaysPutAndCanFollow"
           fi
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
@@ -83,11 +83,11 @@ jobs:
           xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 15
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 16
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
-          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build15-unsigned.ipa Payload)
-          shasum -a 256 build/QiuQiu-Build15-unsigned.ipa | tee evidence/SHA256SUMS
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build16-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build16-unsigned.ipa | tee evidence/SHA256SUMS
       - name: Export screenshots and metadata on every outcome
         if: always()
         run: |
@@ -105,9 +105,9 @@ jobs:
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: QiuQiu-Build15-unsigned-ipa
+          name: QiuQiu-Build16-unsigned-ipa
           path: |
-            build/QiuQiu-Build15-unsigned.ipa
+            build/QiuQiu-Build16-unsigned.ipa
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error

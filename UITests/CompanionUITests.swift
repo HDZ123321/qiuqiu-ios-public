@@ -33,11 +33,11 @@ final class CompanionUITests: XCTestCase {
             let app = XCUIApplication()
             app.launchArguments = ["--ui-replies", "--ui-typography"] + (dark ? ["--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] : [])
             app.launch(); app.buttons["跟我说"].tap()
-            let title = app.staticTexts["一级标题 Heading"]
+            let title = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", "一级标题 Heading", "一级标题 Heading")).firstMatch
             XCTAssertTrue(title.waitForExistence(timeout: 5))
             screenshot(dark ? "typography-headings-dark-huge" : "typography-headings-light")
             let viewport = app.scrollViews["message-reading-scroll"]
-            let task = app.staticTexts["Completed task, read only"]
+            let task = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", "Completed task, read only", "Completed task, read only")).firstMatch
             for _ in 0..<18 {
                 if task.isHittable { break }
                 viewport.swipeUp(velocity: .slow)
@@ -77,7 +77,7 @@ final class CompanionUITests: XCTestCase {
         let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 60, dy: rowY))
         start.press(forDuration: 0.1, thenDragTo: end)
         start.press(forDuration: 0.1, thenDragTo: end)
-        let lastCell = app.staticTexts["End of wide table"]
+        let lastCell = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", "End of wide table", "End of wide table")).firstMatch
         XCTAssertTrue(lastCell.isHittable)
         screenshot("typography-wide-table-horizontal-revealed")
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -195,8 +195,8 @@ final class CompanionUITests: XCTestCase {
         screenshot("server-session-real-title")
         row.tap()
         XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout:10))
-        XCTAssertTrue(app.staticTexts["Historical garden question"].waitForExistence(timeout:5))
-        XCTAssertTrue(app.staticTexts["Historical garden answer"].exists)
+        XCTAssertTrue(app.textViews.matching(NSPredicate(format: "value == %@", "Historical garden question")).firstMatch.waitForExistence(timeout:5))
+        XCTAssertTrue(app.textViews.matching(NSPredicate(format: "value == %@", "Historical garden answer")).firstMatch.exists)
         XCTAssertFalse(app.buttons["读取真实历史文字"].exists)
         XCTAssertFalse(app.buttons["打开本机会话 / 准备继续"].exists)
         XCTAssertFalse(app.buttons["发送"].isEnabled)

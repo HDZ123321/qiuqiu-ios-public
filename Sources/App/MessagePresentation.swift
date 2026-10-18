@@ -21,10 +21,10 @@ struct MessageCodeView: View {
                 VStack(alignment: .leading) { controls }
             }
             if wrap {
-                Text(visible).font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                SelectableReplyText(text: visible, monospaced: true, markdown: false).frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ScrollView(.horizontal) {
-                    Text(visible).font(.system(.body, design: .monospaced)).fixedSize(horizontal: true, vertical: false).textSelection(.enabled)
+                    SelectableReplyText(text: visible, monospaced: true, markdown: false, naturalWidth: true).fixedSize(horizontal: true, vertical: false)
                 }
             }
             if long { Button(expanded ? "收起代码" : "展开全部代码") { expanded.toggle() }.frame(minHeight: 44) }
@@ -48,7 +48,7 @@ struct MessageTableView: View {
             ForEach(Array(block.rows.enumerated()), id: \.offset) { row in
                 GridRow {
                     ForEach(Array(row.element.enumerated()), id: \.offset) { cell in
-                        replyInline(cell.element).fontWeight(row.offset == 0 ? .semibold : .regular)
+                        SelectableReplyText(text: cell.element, semibold: row.offset == 0, naturalWidth: true)
                             .padding(10).frame(minWidth: 68, maxWidth: .infinity, alignment: alignment(cell.offset))
                             .background(row.offset == 0 ? Color.secondary.opacity(0.14) : Color.clear)
                             .overlay(alignment: .bottom) { Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 1) }
@@ -75,7 +75,7 @@ struct MessagePresentationBlock: View {
         case .code: MessageCodeView(block: block)
         case .table: MessageTableView(block: block)
         case .heading:
-            replyInline(block.text).font(block.level == 1 ? .title2 : block.level == 2 ? .title3 : .headline).fontWeight(.semibold).accessibilityAddTraits(.isHeader).textSelection(.enabled)
+            SelectableReplyText(text: block.text, style: block.level == 1 ? .title2 : block.level == 2 ? .title3 : .headline, semibold: true).accessibilityAddTraits(.isHeader)
         case .listItem:
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let checked = block.checked {
@@ -83,10 +83,10 @@ struct MessagePresentationBlock: View {
                 } else {
                     Text(["-", "+", "*"].contains(block.marker) ? "•" : block.marker).monospacedDigit()
                 }
-                replyInline(block.text).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                SelectableReplyText(text: block.text).frame(maxWidth: .infinity, alignment: .leading)
             }.padding(.leading, CGFloat(min(block.level, 6)) * listIndent)
         case .quote:
-            replyInline(block.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            SelectableReplyText(text: block.text).frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 14).padding(.vertical, 6)
                 .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 2).fill(Color.accentColor.opacity(0.6)).frame(width: 3) }
                 .accessibilityIdentifier("reply-quote")

@@ -29,8 +29,11 @@ import HermesCore
         session.recordingBegan(at: Self.now)
         if session.phase == .failed { DiagnosticLog.shared.record(.voiceUnavailable) }
     }
-    func cancel() {
-        if session.phase != .cancelled { DiagnosticLog.shared.record(.voiceCancel) }
+    func cancel(source: Int = 10) {
+        if session.phase != .cancelled {
+            DiagnosticLog.shared.record(.voiceCancel)
+            DiagnosticLog.shared.record(.voiceCancellation, frames: source, code: 0)
+        }
         session.cancel()
     }
 }
@@ -91,7 +94,7 @@ import HermesCore
                             guard !text.isEmpty, !active else { return }
                             insert(text)
                             DiagnosticLog.shared.record(.voiceDraftInserted)
-                            model.cancel(); dismiss()
+                            model.cancel(source: 11); dismiss()
                         }.disabled(active || session.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .accessibilityIdentifier("voice-insert")
                     }
@@ -114,9 +117,9 @@ import HermesCore
             // Permission prompts may temporarily make the scene inactive. Only
             // background cancels here; audio interruptions/route changes cancel
             // in the driver, including calls and unplugged microphones.
-            if phase == .background { model.cancel() }
+            if phase == .background { model.cancel(source: 12) }
         }
-        .onDisappear { model.cancel() }
+        .onDisappear { model.cancel(source: 13) }
     }
     private var failureMessage: String {
         switch session.permission {
