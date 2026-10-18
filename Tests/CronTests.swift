@@ -34,7 +34,7 @@ final class CronTests: XCTestCase {
         let snapshot=try XCTUnwrap(job.latest_execution)
         XCTAssertEqual(snapshot.status,"completed")
         // Decoding struct has no error/pid fields: raw payload keys cannot leak.
-        let encoded=String(decoding:JSONEncoder().encode(snapshot),as:UTF8.self)
+        let encoded=String(decoding:try JSONEncoder().encode(snapshot),as:UTF8.self)
         XCTAssertFalse(encoded.contains("paths"))
         XCTAssertFalse(encoded.contains("pid"))
     }
