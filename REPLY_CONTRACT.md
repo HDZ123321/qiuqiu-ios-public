@@ -13,6 +13,12 @@ Installed native Runs has approval callbacks but no `clarify.request` event or c
 
 Native OpenAI final-response media conversion supports image data URLs, but Runs final output retains raw MEDIA references. The scoped artifact bridge is therefore required. Generated files outside the dedicated workspace remain unavailable; this is deliberately not a home-directory file browser. Previously imported transcripts without a known owned run cannot grant artifact access.
 
+## Build17 conversation file index
+
+The conversation header opens a read-only list aggregated from the existing authenticated per-run artifact API. Only persisted assistant-message `artifactRunID` provenance contributes; duplicate opaque artifact IDs appear once, with a real local message UUID for jump-back. Browsing never admits/resumes a run or changes the pending stop target. A deleted message or changed connection fails closed. The list has loading, refresh, empty, unavailable and partial-error states.
+
+Names and MIME types come from the restricted artifact response. The existing API does not expose byte counts: sizes are explicitly unknown until an actual bounded download verifies them. No backend scan, uploaded-phone-attachment index or cross-channel historical path inference is added. Older imported conversations without an owned-run mapping show unavailable rather than invented entries. Existing artifact authorization and dedicated-workspace limits are unchanged.
+
 ## Acceptance boundaries
 
 Synthetic-only loopback fixtures exercise actual URLSession downloads, preview/share UI and approval POST/readback. Native approval-handler integration uses temporary HERMES_HOME and a synthetic waiter, no model call. Physical installation, real inference and mobile-network reachability are separate gates. Public endpoint and credentials are never embedded in source or artifacts.

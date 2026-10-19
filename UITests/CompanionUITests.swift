@@ -17,7 +17,7 @@ final class CompanionUITests: XCTestCase {
         app.buttons["下载 / 分享产物"].tap()
         let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy")).firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("conversation-files-native-share")
-        app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
+        copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
         app.buttons.matching(identifier: "conversation-file-jump").element(boundBy: 1).tap()
         XCTAssertTrue(app.staticTexts["已定位来源消息"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["当前任务 · 查看详情"].exists)
