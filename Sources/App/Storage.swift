@@ -16,6 +16,25 @@ enum CredentialStore {
         guard status == errSecSuccess, let data = item as? Data else { throw ClientError.message("无法读取钥匙串 (\(status))。") }
         return try JSONDecoder().decode(ConnectionSettings.self, from: data)
     }
+    // Connection snapshots live only in Keychain, never in chats/diagnostic exports.
+    // Legacy pending runs acquire their original connection before settings can change.
+    static func runConnection(_ key: String) throws -> ConnectionSettings? {
+        var q = query; q[kSecAttrAccount as String] = "pending-connection-" + key
+        q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(q as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = item as? Data else { throw ClientError.message("无法读取原任务连接。") }
+        return try JSONDecoder().decode(ConnectionSettings.self, from: data)
+    }
+    static func preserveRunConnection(_ key: String, settings: ConnectionSettings) throws {
+        if try runConnection(key) != nil { return }
+        var q = query; q[kSecAttrAccount as String] = "pending-connection-" + key
+        q[kSecValueData as String] = try JSONEncoder().encode(settings)
+        q[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        let status = SecItemAdd(q as CFDictionary, nil)
+        guard status == errSecSuccess else { throw ClientError.message("无法保留原任务连接，设置未更换。") }
+    }
     static func save(_ settings: ConnectionSettings) throws {
         let data = try JSONEncoder().encode(settings)
         let attributes: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]

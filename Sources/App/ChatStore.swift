@@ -98,7 +98,10 @@ import HermesCore
         // .inactive (app switcher, banners) keeps live tasks; durable state is already persisted.
     }
     var canNavigate: Bool { true }
-    var canEditConnection: Bool { !busy }
+    var canEditConnection: Bool { true }
+    private func connection(for run: PendingRun) throws -> ConnectionSettings {
+        try CredentialStore.runConnection(run.key) ?? settings
+    }
     var canSend: Bool { !busy && (current?.serverSource == nil || syncState[current!.id] == "live") }
     func persist() {
         do { try saveChats(chats) } catch { self.error = "保存对话失败。" }
@@ -218,9 +221,11 @@ import HermesCore
         edit(id) { $0.archived = !($0.archived == true) }
     }
     func saveSettings(_ value: ConnectionSettings) throws {
-        guard !busy else { throw ClientError.message("任务尚未结束，不能更换服务器。") }
         _ = try ServerEndpoint(value.serverURL)
         guard !value.bearer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !value.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ClientError.message("令牌和模型不能为空。") }
+        // Preserve old ownership BEFORE changing the default connection. If either
+        // Keychain operation fails, keep the old settings and pending intent intact.
+        if let run = activeChat?.run { try CredentialStore.preserveRunConnection(run.key, settings: settings) }
         try CredentialStore.save(value); settings = value
     }
     // Archival is append-only and never touches the active run or stop target.
@@ -266,7 +271,9 @@ import HermesCore
         DiagnosticLog.shared.record(.resume, id: run.replyID, state: DiagnosticLog.State(rawValue: run.status) ?? .unknown)
         busy = true; startedAt = run.createdAt
         let token = UUID(); epoch = token
-        let configuration = settings
+        let configuration: ConnectionSettings
+        do { configuration = try connection(for: run) }
+        catch { self.error = "无法读取原任务连接；未向新地址发送请求。"; return }
         generation = Task {
             defer { if epoch == token { generation = nil; connected = false; eventTask?.cancel(); eventTask = nil; if foreground, let current, current.run?.terminal != false { startSync(for: current.id) } } }
             while !Task.isCancelled && foreground && epoch == token {
@@ -377,7 +384,9 @@ import HermesCore
               approval.choices?.contains(choice) == true, let requestID = approval.request_id,
               expectedRequestID == nil || expectedRequestID == requestID,
               let runID = run.runID, let chatID = activeChat?.id else { return }
-        let configuration = settings
+        let configuration: ConnectionSettings
+        do { configuration = try connection(for: run) }
+        catch { self.error = "无法读取原任务连接；未向新地址发送批准。"; return }
         let connectionEpoch = epoch
         DiagnosticLog.shared.record(choice == "once" ? .approvalOnce : .approvalDeny, id: run.replyID)
         approvalBusy = true

@@ -66,7 +66,7 @@ final class Build5Tests: XCTestCase {
         store.send("fixture")
         await fulfillment(of: [called], timeout: 3)
         XCTAssertTrue(store.canNavigate)
-        XCTAssertFalse(store.canEditConnection)
+        XCTAssertTrue(store.canEditConnection)
         XCTAssertFalse(store.canSend)
         store.sceneChanged(.inactive)
         held?.reply(530, "offline")
@@ -144,6 +144,40 @@ final class Build5Tests: XCTestCase {
         XCTAssertEqual(store.current?.sessionID, "s_final")
         XCTAssertEqual(store.current?.messages.last?.content, "fixture final")
         XCTAssertFalse(store.busy)
+    }
+    @MainActor func testChangedSettingsPreservePendingOriginAcrossReloadAndStop() async throws {
+        var pending = try PendingRun(input: "synthetic", model: "old-model", sessionID: nil, history: [], replyID: UUID())
+        pending.admissionDispatched = true
+        try pending.apply(Data(#"{"run_id":"run_origin","status":"running"}"#.utf8))
+        let chat = Chat(messages: []); var savedChat = chat; savedChat.run = pending
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [Build5Protocol.self]
+        let api = HermesAPI(session: URLSession(configuration: config))
+        let original = store().settings
+        let subject = ChatStore(api: api, initialChats: [savedChat], save: { _ in })
+        subject.settings = original
+        var changed = original; changed.serverURL = "https://new-settings.invalid"; changed.bearer = "new-synthetic"; changed.model = "new-model"
+        try subject.saveSettings(changed)
+        XCTAssertEqual(subject.activeRun, pending)
+        XCTAssertTrue(subject.busy)
+        XCTAssertEqual(try CredentialStore.runConnection(pending.key), original)
+        let stopped = expectation(description: "stop reaches original connection after reload")
+        Build5Protocol.handler = { proto in
+            XCTAssertEqual(proto.request.url?.host, "fixture.invalid")
+            XCTAssertEqual(proto.request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-only")
+            XCTAssertFalse(proto.request.url!.path.hasSuffix("capabilities"))
+            if proto.request.url!.path.hasSuffix("stop") {
+                proto.reply(200, #"{"run_id":"run_origin","status":"cancelled"}"#)
+                stopped.fulfill()
+            } else { proto.reply(200, #"{"run_id":"run_origin","status":"running"}"#) }
+        }
+        let reloaded = ChatStore(api: api, initialChats: subject.chats, save: { _ in })
+        reloaded.settings = changed
+        defer { reloaded.detach(); Build5Protocol.handler = nil }
+        reloaded.cancel()
+        await fulfillment(of: [stopped], timeout: 5)
+        XCTAssertEqual(reloaded.activeRun?.key, pending.key)
+        XCTAssertEqual(reloaded.activeRun?.body, pending.body)
+        XCTAssertEqual(reloaded.activeRun?.runID, pending.runID)
     }
     static let capabilities = #"{"features":{"run_submission":true,"run_status":true,"run_stop":true,"run_approval_response":true,"runs_idempotency":{"supported":true,"durable":true,"retention_seconds":86400}}}"#
 

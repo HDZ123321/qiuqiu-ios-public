@@ -140,6 +140,11 @@ struct SettingsView: View {
     @State private var verification = ConnectionVerification()
     @State private var checkTask: Task<Void, Never>?
     @State private var exportURL: URL?
+    @State private var confirmConnectionChange = false
+    private func save() {
+        do { try store.saveSettings(value); verification.invalidate(); dismiss() }
+        catch { status = error.localizedDescription }
+    }
     private let probeAPI = HermesAPI()
     init(store: ChatStore) { self.store = store; _value = State(initialValue: store.settings) }
     var body: some View {
@@ -149,7 +154,13 @@ struct SettingsView: View {
                     TextField("https://your-server", text: $value.serverURL).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Bearer Token", text: $value.bearer).textInputAutocapitalization(.never).autocorrectionDisabled()
                     TextField("模型 ID", text: $value.model).textInputAutocapitalization(.never).autocorrectionDisabled()
-                }.disabled(!store.canEditConnection)
+                }
+                if store.busy {
+                    Section {
+                        Text("可编辑并保存新连接。原任务仍使用原地址和原密钥重连、停止，不会自动发送到新服务器；聊天记录不会删除。")
+                            .font(.footnote)
+                    }
+                }
                 Section {
                     Button(checking ? "验证中…" : "验证连接与真实聊天") {
                         let configuration = value
@@ -197,11 +208,18 @@ struct SettingsView: View {
                 checkTask?.cancel(); verification.invalidate(); status = "未验证（设置已修改）"
             }
             .onDisappear { checkTask?.cancel(); verification.invalidate() }
+            .confirmationDialog("保存新连接并保留原任务？", isPresented: $confirmConnectionChange, titleVisibility: .visible) {
+                Button("确认保存新连接") { save() }
+                Button("继续编辑", role: .cancel) { }
+            } message: {
+                Text("原任务不会取消、迁移或重新提交；重连与停止仍发往原服务器。新设置只用于之后的连接，聊天记录保留。")
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
-                        do { try store.saveSettings(value); verification.invalidate(); dismiss() } catch { status = error.localizedDescription }
+                        if store.busy && value != store.settings { confirmConnectionChange = true }
+                        else { save() }
                     }.disabled(checking || !store.canEditConnection)
                 }
             }

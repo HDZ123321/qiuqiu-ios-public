@@ -23,7 +23,7 @@ struct CompanionView: View {
                     Section("连接与诊断") { NavigationLink("连接设置 · 诊断日志") { SettingsView(store: store) } }
                     Section("外观") { Picker("主题", selection: $skin) { Text("液态玻璃").tag("glass"); Text("温暖灵动").tag("warm"); Text("安静耐看").tag("quiet") } }
                     Section("关于") {
-                        Text("球球 iOS · Build 15")
+                        Text("球球 iOS · Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "未知")")
                         Text("界面适配自 Hermes Android 3.8.8。原作 jeromeleeqy-hash；用户报告已获作者原作使用许可。保留来源，未使用第三方图标或字体。") .font(.footnote)
                         Link("原项目与来源", destination: URL(string: "https://github.com/jeromeleeqy-hash/Hermes-Android")!)
                         Text("本版文件仅限专用安全工作区；定时安排使用独立受限接口，未开放时不可用。不含完整语音会话/朗读及深度助理整理。聊天麦克风仅设备端转文字草稿，需手动发送。跟我说打开聊天。人物为原作静态资源；玻璃材质使用 iOS 原生适配。") .font(.footnote).foregroundStyle(.secondary)
