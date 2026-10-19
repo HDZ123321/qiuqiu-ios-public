@@ -20,6 +20,7 @@ final class CompanionUITests: XCTestCase {
         copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
         app.buttons.matching(identifier: "conversation-file-jump").element(boundBy: 1).tap()
         XCTAssertTrue(app.staticTexts["已定位来源消息"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["已定位来源消息"].isHittable)
         XCTAssertTrue(app.buttons["当前任务 · 查看详情"].exists)
         XCTAssertFalse(app.buttons["发送"].isEnabled)
         screenshot("conversation-files-source-message-busy")
@@ -35,6 +36,12 @@ final class CompanionUITests: XCTestCase {
             let expected = mode == "empty" ? "暂无可访问的生成文件" : mode == "unavailable" ? "此对话没有可核实的文件来源" : mode == "error" ? "部分文件来源暂时无法读取，请刷新重试。" : "本对话生成的文件"
             XCTAssertTrue(app.staticTexts[expected].waitForExistence(timeout: 10))
             XCTAssertTrue(app.buttons["conversation-files-refresh"].exists)
+            if mode == "long" {
+                let name = String(repeating: "研究报告与项目说明", count: 12) + ".md"
+                let label = app.staticTexts[name]
+                for _ in 0..<15 { if label.isHittable { break }; app.swipeUp(velocity: .slow) }
+                XCTAssertTrue(label.isHittable)
+            }
             screenshot("conversation-files-" + mode + "-huge-text")
             app.terminate()
         }

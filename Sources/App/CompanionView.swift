@@ -316,6 +316,7 @@ struct RunHistoryView: View {
                         if store.current?.messages.isEmpty != false { Text("跟球球说说，今天想做什么？").font(.title3).foregroundStyle(.secondary).padding(.vertical, 40) }
                         ForEach(store.current?.messages ?? []) { message in
                             VStack(alignment: .leading, spacing: 10) {
+                                if fileJump == message.id { Text("已定位来源消息").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("file-source-located") }
                                 HStack { Label(message.role == "user" ? "你" : "球球", systemImage: message.role == "user" ? "person.crop.circle" : "sparkles").font(.caption.bold()).foregroundStyle(.secondary); Spacer(); Button { UIPasteboard.general.string = message.content } label: { Image(systemName: "doc.on.doc").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("复制消息").disabled(message.content.isEmpty) }
                                 if let names = message.attachmentNames { ForEach(names, id: \.self) { name in Label(name, systemImage:"paperclip").font(.caption) } }
                                 if message.interrupted == true { Text("未完成的回复").font(.caption).foregroundStyle(.orange) }
@@ -327,7 +328,6 @@ struct RunHistoryView: View {
                                 if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
                                     ReplyArtifactsView(runID: runID, settings: store.settings)
                                 }
-                                if fileJump == message.id { Text("已定位来源消息").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("file-source-located") }
                             }.id(message.id).padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))
                         }
                     }.padding(18)

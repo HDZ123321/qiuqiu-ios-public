@@ -61,6 +61,9 @@ import HermesCore
                 reply.content = "File source message · stable fixture provenance"
             }
             var chat = Chat(messages: [reply])
+            if ProcessInfo.processInfo.arguments.contains("--ui-conversation-files") {
+                chat.messages += (0..<12).map { ChatMessage(role: "assistant", content: "Later synthetic message \($0). Browsing must return to the exact earlier source, not the tail.") }
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-approval") {
                 chat.run = try? PendingRun(input: "synthetic fixture", model: "fixture", sessionID: nil, history: [], replyID: reply.id)
                 try? chat.run?.apply(Data(#"{"run_id":"run_fixture","status":"waiting_for_approval","approval":{"request_id":"request_fixture","command":"Synthetic operation only: create a sample report","choices":["once","deny"]}}"#.utf8))
