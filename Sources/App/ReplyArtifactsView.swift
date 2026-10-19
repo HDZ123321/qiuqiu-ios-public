@@ -42,7 +42,7 @@ struct ReplyArtifactCard: View {
             Text(data.map { ByteCountFormatter.string(fromByteCount: Int64($0.count), countStyle: .file) } ?? "大小在下载后核实 · 上限 4 MB").font(.caption).foregroundStyle(.secondary)
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
             Button { Task { await download(); if localURL != nil { preview = true } } } label: {
-                Label(busy ? "下载中…" : "预览文件", systemImage: item.image ? "photo" : "doc.text")
+                Label(busy ? "下载中…" : "预览文件", systemImage: item.image ? "photo" : "doc.text").fixedSize(horizontal: false, vertical: true)
             }.buttonStyle(.bordered).disabled(busy).accessibilityIdentifier("reply-file-preview")
         }.task { if item.image { await download() } }
         .sheet(isPresented: $preview) {

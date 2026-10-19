@@ -29,7 +29,7 @@ struct ConversationFilesView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             ReplyArtifactCard(item: entry.artifact, runID: entry.source.runID, settings: settings)
                             Button { if !jump(entry.source) { error = "来源消息已删除、不可用或连接已变化。" } } label: {
-                                Label("回到来源消息", systemImage: "arrow.uturn.backward")
+                                Label("回到来源消息", systemImage: "arrow.uturn.backward").fixedSize(horizontal: false, vertical: true)
                             }.accessibilityIdentifier("conversation-file-jump")
                         }.buttonStyle(.borderless).padding(.vertical, 6)
                     }
