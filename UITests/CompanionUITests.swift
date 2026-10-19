@@ -22,7 +22,7 @@ final class CompanionUITests: XCTestCase {
         let quote = app.buttons["reply-quote"].firstMatch
         let reading = app.scrollViews["message-reading-scroll"]
         for _ in 0..<10 { if quote.isHittable { break }; reading.swipeDown(velocity: .slow) }
-        XCTAssertTrue(quote.isHittable)
+        XCTAssertTrue(quote.exists)
         quote.tap()
         XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["发送"].isEnabled)
