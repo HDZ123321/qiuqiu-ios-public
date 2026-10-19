@@ -6,17 +6,21 @@ import HermesCore
 #endif
 
 @MainActor final class VoiceInputModel: ObservableObject {
-    let session: VoiceInputSession
+    @Published private(set) var session: VoiceInputSession
     private var lastPhase: VoiceInputSession.Phase = .idle
-    convenience init() { self.init(driver: AppleVoiceInput()) }
-    init(driver: VoiceInputDriver) {
-        session = VoiceInputSession(driver: driver)
+    convenience init() {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--ui-inline-voice") { self.init(driver: SyntheticInlineVoice()); return }
+        #endif
+        self.init(driver: AppleVoiceInput())
+    }
+    init(driver: VoiceInputDriver) { session = VoiceInputSession(driver: driver); observe() }
+    private func observe() {
         session.changed = { [weak self] in
             guard let self else { return }
             self.objectWillChange.send()
             if self.lastPhase != self.session.phase {
                 self.lastPhase = self.session.phase
-                // Fixed numeric state only; no transcript, audio, locale or errors.
                 let phases: [VoiceInputSession.Phase] = [.idle, .authorizing, .recording, .finishing, .preview, .failed, .cancelled]
                 DiagnosticLog.shared.record(.voicePhase, code: phases.firstIndex(of: self.session.phase))
             }
@@ -27,111 +31,49 @@ import HermesCore
         DiagnosticLog.shared.record(.voiceStart)
         await session.start(at: Self.now)
         session.recordingBegan(at: Self.now)
-        if session.phase == .failed { DiagnosticLog.shared.record(.voiceUnavailable) }
     }
     func cancel(source: Int = 10) {
-        if session.phase != .cancelled {
-            DiagnosticLog.shared.record(.voiceCancel)
-            DiagnosticLog.shared.record(.voiceCancellation, frames: source, code: 0)
-        }
+        DiagnosticLog.shared.record(.voiceCancellation, frames: source, code: 0)
         session.cancel()
+    }
+    var statusText: String {
+        switch session.phase {
+        case .idle: return ""
+        case .authorizing: return "等待麦克风与语音识别授权…"
+        case .recording: return "正在录音 · 仅设备端 · \(session.elapsed)/60 秒 · 不保存音频，不自动发送"
+        case .finishing: return "录音已停止，等待最终文字（最多 4 秒）…"
+        case .preview: return session.transcript.isEmpty ? "未识别到文字，请使用键盘。" : "语音已转为草稿，可编辑后手动发送。"
+        case .cancelled: return "录音已取消，草稿未发送。"
+        case .failed:
+            if session.permission == .microphoneDenied { return "未获麦克风权限，请在系统设置中允许或使用键盘。" }
+            if session.permission == .speechDenied { return "未获语音识别权限，请在系统设置中允许或使用键盘。" }
+            if session.failure == .unavailable { return "此设备或语言不支持设备端识别；不会回退云端，请使用键盘。" }
+            return "语音识别失败，录音已停止；请检查草稿或使用键盘。"
+        }
     }
 }
 
-/// Text-input helper, not a voice conversation or audio-message transport.
-@MainActor struct VoiceInputView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var model = VoiceInputModel()
-    let insert: (String) -> Void
-    private var session: VoiceInputSession { model.session }
-    private var active: Bool { [.authorizing, .recording, .finishing].contains(session.phase) }
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("语音转文字 · 仅设备端") {
-                    Text("使用 Apple Speech，仅允许设备端识别。最长 60 秒；不保存录音，不上传音频，不自动发送。不是语音通话或朗读。")
-                        .font(.footnote)
-                    Text("识别语言：\(Locale.current.localizedString(forIdentifier: Locale.current.identifier) ?? Locale.current.identifier)")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Section {
-                    switch session.phase {
-                    case .idle:
-                        Button { Task { await model.start() } } label: { Label("开始录音", systemImage: "mic.fill") }
-                            .accessibilityIdentifier("voice-start")
-                    case .authorizing:
-                        ProgressView("等待麦克风与语音识别授权…")
-                    case .recording:
-                        Label("正在录音 · \(session.elapsed) / 60 秒", systemImage: "mic.fill")
-                        Button("停止录音 · 预览文字") {
-                            DiagnosticLog.shared.record(.voiceStop)
-                            session.stop(at: VoiceInputModel.now)
-                        }.accessibilityIdentifier("voice-stop")
-                    case .finishing:
-                        ProgressView("录音已停止，等待最终文字（最多 4 秒）…")
-                    case .preview:
-                        Text(session.transcript.isEmpty ? "未识别到文字，请返回键盘输入。" : "请检查、编辑后加入草稿。尚未发送。")
-                    case .failed:
-                        Text(failureMessage).foregroundStyle(.secondary)
-                        if session.permission != .allowed {
-                            Button("打开系统设置") {
-                                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                            }
-                        }
-                    case .cancelled:
-                        Text("录音已取消；未保存或发送。请返回键盘输入。")
-                    }
-                }
-                if session.phase != .cancelled {
-                    Section("识别预览 · 可编辑") {
-                        TextEditor(text: Binding(get: { session.transcript }, set: { session.transcript = String($0.prefix(16000)) }))
-                            .frame(minHeight: 150).disabled(active)
-                            .accessibilityLabel("语音转文字预览")
-                            .accessibilityIdentifier("voice-preview")
-                        Button("加入聊天草稿（不发送）") {
-                            let text = session.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !text.isEmpty, !active else { return }
-                            insert(text)
-                            DiagnosticLog.shared.record(.voiceDraftInserted)
-                            model.cancel(source: 11); dismiss()
-                        }.disabled(active || session.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            .accessibilityIdentifier("voice-insert")
-                    }
-                }
-                Button("取消 · 返回键盘", role: .cancel) { model.cancel(); dismiss() }
-                    .accessibilityIdentifier("voice-cancel")
-            }
-            .navigationTitle("语音输入").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { model.cancel(); dismiss() } } }
-        }
-        .interactiveDismissDisabled(active)
-        .task {
-            // Wall-clock polling avoids an unbounded recorder or finalization wait.
-            while !Task.isCancelled {
-                do { try await Task.sleep(nanoseconds: 200_000_000) } catch { break }
-                session.tick(at: VoiceInputModel.now)
-            }
-        }
-        .onChange(of: scenePhase) { phase in
-            // Permission prompts may temporarily make the scene inactive. Only
-            // background cancels here; audio interruptions/route changes cancel
-            // in the driver, including calls and unplugged microphones.
-            if phase == .background { model.cancel(source: 12) }
-        }
-        .onDisappear { model.cancel(source: 13) }
+#if DEBUG && targetEnvironment(simulator)
+/// Synthetic permission/audio seam only. Never included in an iPhoneOS build.
+@MainActor private final class SyntheticInlineVoice: VoiceInputDriver {
+    var receive: ((VoiceInputEvent) -> Void)?
+    var task: Task<Void, Never>?
+    func authorize() async -> VoicePermission {
+        if ProcessInfo.processInfo.arguments.contains("--ui-voice-denied") { return .microphoneDenied }
+        return .allowed
     }
-    private var failureMessage: String {
-        switch session.permission {
-        case .microphoneDenied: return "未获麦克风权限。可在系统设置中允许麦克风，或返回键盘输入。"
-        case .speechDenied: return "未获语音识别权限（也可能受系统限制）。可在系统设置中检查，或返回键盘输入。"
-        case .allowed:
-            switch session.failure {
-            case .unavailable: return "当前设备、系统语言或离线模型不支持设备端识别。不会回退到云端；请使用键盘。可检查系统语言与听写资源后重试。"
-            case .audio: return "无法启动麦克风。请检查是否被其他应用占用，或返回键盘输入。"
-            default: return "识别中断或失败，录音已停止。下方可能是未完成的文字，请检查编辑或返回键盘输入。"
-            }
+    func start(_ receive: @escaping (VoiceInputEvent) -> Void) throws {
+        self.receive = receive
+        task = Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }; receive(.transcript("synthetic", final: false))
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }; receive(.transcript("synthetic words", final: false))
+            if ProcessInfo.processInfo.arguments.contains("--ui-voice-error") { receive(.failed(.recognition)) }
         }
     }
+    func finish() { receive?(.transcript("synthetic words final", final: true)) }
+    func cancel() { task?.cancel(); task = nil; receive = nil }
 }
+#endif
 #endif

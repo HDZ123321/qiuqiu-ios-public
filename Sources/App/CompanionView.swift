@@ -301,10 +301,11 @@ struct RunHistoryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
     @State private var taskDetails = false
-    @State private var voiceOpen = false
-    @State private var answerOpen = false
-    @State private var answer = ""
+    @StateObject private var voice = VoiceInputModel()
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var voiceBase = ""
     @State private var voiceChatID: UUID?
+    @State private var quote: MessageQuote?
     private struct FileContext: Identifiable {
         let id: UUID
         let settings: ConnectionSettings
@@ -324,13 +325,16 @@ struct RunHistoryView: View {
                                 if message.interrupted == true { Text("未完成的回复").font(.caption).foregroundStyle(.orange) }
                                 if message.content.isEmpty { Text(store.current?.run?.terminal == false ? "等待球球回复…" : "未收到回复（已停止或请求失败）").foregroundStyle(.secondary) }
                                 else { MarkdownMessage(content: message.content) }
-                                if message.role == "assistant", store.current?.run?.terminal != false {
-                                    Button("回答 / 补充这条消息") { answer = draft; answerOpen = true }.buttonStyle(.bordered).accessibilityIdentifier("reply-answer")
+                                if let snapshot = message.quote { quotePreview(snapshot, removable: false) }
+                                if ["user", "assistant"].contains(message.role), !message.content.isEmpty {
+                                    Button { selectQuote(message) } label: { Label("引用", systemImage: "quote.bubble") }.buttonStyle(.borderless).accessibilityIdentifier("reply-quote")
                                 }
                                 if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
                                     ReplyArtifactsView(runID: runID, settings: store.settings)
                                 }
                             }.id(message.id).padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))
+                            .background(MessageQuoteSwipe { selectQuote(message) })
+                            .contextMenu { Button("引用") { selectQuote(message) }; Button("复制正文") { UIPasteboard.general.string = message.content } }
                         }
                     }.padding(18)
             }
@@ -360,15 +364,21 @@ struct RunHistoryView: View {
                     .id("\(state)-\(chatID)")
             }
             if let error = store.error { HStack { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled); Button("关闭") { store.error = nil } }.padding(10) }
+            if let quote { quotePreview(quote, removable: true).padding(.horizontal) }
+            inlineVoiceStatus
             ChatAttachmentPicker()
             HStack(alignment: .bottom) {
-                Button { voiceChatID = store.current?.id; voiceOpen = true } label: {
+                Button {
+                    guard !voiceActive else { return }
+                    voiceBase = draft; voiceChatID = store.current?.id
+                    Task { await voice.start() }
+                } label: {
                     Image(systemName: "mic").frame(minWidth: 44, minHeight: 44)
                 }.accessibilityLabel("语音输入 · 转为文字草稿")
                     .accessibilityIdentifier("voice-input")
-                    .disabled(store.current?.archived == true || store.attachmentLoading)
-                TextField(store.busy ? "任务进行中，结束后可发送" : "跟球球说…", text: $draft, axis: .vertical).lineLimit(1...6).padding(12).background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
-                Button { let text = draft; store.send(text); if store.busy { draft = "" } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("发送").disabled(!store.canSend || store.attachmentLoading || store.current?.archived == true || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.attachments.isEmpty))
+                    .disabled(store.current?.archived == true || store.attachmentLoading || voiceActive)
+                TextField(store.busy ? "任务进行中，结束后可发送" : "跟球球说…", text: Binding(get: { draft }, set: { value in if voiceActive { voice.cancel(); voiceChatID = nil }; draft = value }), axis: .vertical).lineLimit(1...6).padding(12).background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+                Button { let previous = store.current?.run?.key; store.send(draft, quote: quote); if store.current?.run?.key != previous { draft = ""; quote = nil; voiceChatID = nil } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("发送").disabled(voiceActive || !store.canSend || store.attachmentLoading || store.current?.archived == true || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.attachments.isEmpty))
             }.padding()
         }.navigationTitle(store.current?.title ?? "球球").navigationBarTitleDisplayMode(.inline)
         .sheet(item: $fileContext) { context in
@@ -381,21 +391,17 @@ struct RunHistoryView: View {
                 }.toolbar { Button("关闭文件列表") { fileContext = nil } }
             }
         }
-        .sheet(isPresented: $answerOpen) {
-            NavigationStack {
-                Form {
-                    Section("回答问题") {
-                        Text("当前原生 Runs API 没有 clarify.request / answer 接口，不能回答执行中阻塞的结构化选项。这里通过同一会话的下一条用户消息回答；不会伪造选项或自动提交。休止中的任务需先在服务器结束，不能用普通消息解锁。") .font(.caption).foregroundStyle(.secondary)
-                        TextField("输入你的回答或选项文字", text: $answer, axis: .vertical).accessibilityIdentifier("answer-text")
-                        Button("放入草稿，检查后发送") { draft = answer; answerOpen = false }.disabled(answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("answer-draft")
-                    }
-                }.navigationTitle("回答 / 补充").toolbar { Button("取消") { answerOpen = false } }
-            }
+        .onChange(of: voice.session.transcript) { text in
+            guard voiceChatID == store.current?.id, voice.session.phase != .cancelled else { return }
+            draft = voiceBase + (voiceBase.isEmpty || text.isEmpty ? "" : "\n") + text
         }
-        .sheet(isPresented: $voiceOpen) {
-            VoiceInputView { text in
-                guard voiceChatID == store.current?.id else { return }
-                draft += (draft.isEmpty ? "" : "\n") + text
+        .onChange(of: scenePhase) { phase in
+            if phase == .background { voice.cancel(source: 12); voiceChatID = nil }
+        }
+        .task {
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 200_000_000) } catch { break }
+                voice.session.tick(at: VoiceInputModel.now)
             }
         }
         .onAppear { if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } }
@@ -409,13 +415,46 @@ struct RunHistoryView: View {
             }
         }
         #endif
-        .onDisappear { store.stopSync() }
-        .onChange(of: store.current?.id) { _ in voiceOpen = false; if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } else { store.stopSync() } }
+        .onDisappear { voice.cancel(source: 13); voiceChatID = nil; store.stopSync() }
+        .onChange(of: store.current?.id) { _ in voice.cancel(); voiceChatID = nil; quote = nil; draft = ""; if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } else { store.stopSync() } }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { if let id = store.current?.id { fileJump = nil; fileContext = FileContext(id: id, settings: store.settings) } } label: { Label("对话文件", systemImage: "folder") }.accessibilityIdentifier("conversation-files")
             }
             ToolbarItem(placement: .confirmationAction) { Button("完成") { store.stopSync(); dismiss() } }
+        }
+    }
+    private var voiceActive: Bool { [.authorizing, .recording, .finishing].contains(voice.session.phase) }
+    private func selectQuote(_ message: ChatMessage) {
+        guard let id = store.current?.id else { return }
+        quote = MessageQuote.capture(message, conversationID: id)
+    }
+    private func quotePreview(_ snapshot: MessageQuote, removable: Bool) -> some View {
+        HStack(alignment: .top) {
+            Rectangle().fill(Color.secondary).frame(width: 3)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("引用 · " + snapshot.senderLabel).font(.caption.bold())
+                Text(snapshot.text).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if removable { Button { quote = nil } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("取消引用").accessibilityIdentifier("quote-cancel") }
+        }.fixedSize(horizontal: false, vertical: true).padding(8).background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+    @ViewBuilder private var inlineVoiceStatus: some View {
+        if voice.session.phase != .idle {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(voice.statusText).font(.caption).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("voice-status")
+                if voiceActive {
+                    HStack {
+                        if voice.session.phase == .recording {
+                            Button("停止录音") { voice.session.stop(at: VoiceInputModel.now) }.accessibilityIdentifier("voice-stop")
+                        }
+                        Button("取消语音") { voice.cancel(); draft = voiceBase; voiceChatID = nil }.accessibilityIdentifier("voice-cancel")
+                    }.buttonStyle(.bordered)
+                }
+                if voice.session.phase == .failed, voice.session.permission != .allowed {
+                    Button("打开系统设置") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal)
         }
     }
 }

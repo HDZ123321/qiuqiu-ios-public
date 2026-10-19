@@ -2,6 +2,15 @@ import XCTest
 @testable import HermesCore
 
 @MainActor final class VoiceInputTests: XCTestCase {
+    func testCanStartNewCaptureAfterFinalWithoutReusingTranscript() async {
+        let driver = VoiceFake(); let session = VoiceInputSession(driver: driver)
+        await session.start(at: 0)
+        driver.emit?(.transcript("first", final: true))
+        await session.start(at: 10)
+        XCTAssertEqual(session.phase, .recording)
+        XCTAssertEqual(session.transcript, "")
+    }
+
     func testStartNeedsPermissionsAndNeverCommitsAutomatically() async {
         let driver = VoiceFake()
         let session = VoiceInputSession(driver: driver)

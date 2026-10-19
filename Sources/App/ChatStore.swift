@@ -398,7 +398,8 @@ import HermesCore
         attachments.append(attachment)
         DiagnosticLog.shared.record(.attachmentAdded,frames:attachments.count,texts:attachment.data.count)
     }
-    func send(_ text: String) {
+    func send(_ text: String, quote: MessageQuote? = nil) {
+        guard quote == nil || quote?.conversationID == selected else { error = "引用属于另一对话，请重新选择。"; return }
         guard !busy, let id = selected, let i = chats.firstIndex(where: { $0.id == id }) else { return }
         if let source = chats[i].serverSource {
             guard source.scope == ServerSessionImport.scope(settings) else { error = "此服务器会话属于另一连接，请恢复原连接后继续。"; return }
@@ -414,9 +415,10 @@ import HermesCore
                 throw ClientError.message("此服务器会话属于另一连接，请恢复原连接后继续。")
             }
             let reply = ChatMessage(role: "assistant", content: "")
-            let pending = try PendingRun(input: content, model: settings.model, sessionID: chats[i].sessionID, history: chats[i].messages, replyID: reply.id, attachments: attachments)
+            let pending = try PendingRun(input: quote?.userContent(content) ?? content, model: settings.model, sessionID: chats[i].sessionID, history: chats[i].messages, replyID: reply.id, attachments: attachments)
             var saved = chats
             var user = ChatMessage(role: "user", content: content)
+            user.quote = quote
             user.attachmentNames = attachments.isEmpty ? nil : attachments.map(\.name)
             saved[i].messages.append(user); saved[i].messages.append(reply); saved[i].run = pending
             try saveChats(saved) // Do not send without a durable intent.

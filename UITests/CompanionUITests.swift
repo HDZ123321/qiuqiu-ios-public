@@ -1,6 +1,21 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testLeftSwipeQuotesSpecificMessageAboveComposer() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-history"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let message = app.staticTexts["验收历史"]
+        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        message.swipeLeft()
+        XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
+        screenshot("quote-preview-above-composer")
+        let composer = app.textFields.firstMatch
+        composer.tap(); composer.typeText("keep typed")
+        app.buttons["quote-cancel"].tap()
+        XCTAssertEqual(composer.value as? String, "keep typed")
+    }
+
     func testInlineVoiceShowsComposerWithoutSheet() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-replies", "--ui-inline-voice"]
