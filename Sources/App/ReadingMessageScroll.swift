@@ -11,6 +11,7 @@ private struct ReadingBottomKey: PreferenceKey {
 struct ReadingMessageScroll<Content: View>: View {
     let revision: String
     let conversationID: UUID?
+    var jumpTarget: UUID? = nil
     @ViewBuilder let content: () -> Content
     @State private var position = MessageReadPosition()
     @State private var bottom: CGFloat = 0
@@ -44,6 +45,11 @@ struct ReadingMessageScroll<Content: View>: View {
                     if position.following { proxy.scrollTo("reading-bottom", anchor: .bottom) }
                 }
                 .onChange(of: conversationID) { _ in position.follow() }
+                .onChange(of: jumpTarget) { target in
+                    guard let target else { return }
+                    position.userScrolled(distanceFromBottom: 1000)
+                    proxy.scrollTo(target, anchor: .top)
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if position.hasNewContent {
                         Button { position.follow(); proxy.scrollTo("reading-bottom", anchor: .bottom) } label: {

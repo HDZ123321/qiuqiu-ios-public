@@ -11,6 +11,7 @@ pixels=b''.join(b'\x00'+b''.join(bytes((35 if x<160 else 225,110 if y<90 else 18
 PNG=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(pixels))+chunk(b'IEND',b'')
 IMAGE='a'*64
 FILE='b'*64
+DOC='c'*64
 status='waiting_for_approval'
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
@@ -20,6 +21,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path=='/ready': return self.reply(200,{})
         if self.headers.get('Authorization')!='Bearer synthetic-fixture-only': return self.reply(401,{})
+        if self.path=='/v1/app/artifacts/run_empty': return self.reply(200,{'items':[]})
+        if self.path=='/v1/app/artifacts/run_error': return self.reply(403,{})
+        if self.path in ['/v1/app/artifacts/run_files','/v1/app/artifacts/run_long']:
+            name=('研究报告与项目说明'*12+'.md') if self.path.endswith('run_long') else 'second-report.md'
+            image={'id':IMAGE,'name':'generated.png','mime':'image/png'}
+            return self.reply(200,{'items':[image,{'id':FILE,'name':'generated.txt','mime':'text/plain'},{'id':DOC,'name':name,'mime':'text/markdown'},image]})
+        if self.path.endswith('/'+DOC): return self.reply(200,b'# Second synthetic document\nNo user data.','text/markdown')
         if self.path=='/v1/app/artifacts/run_fixture': return self.reply(200,{'items':[{'id':IMAGE,'name':'generated.png','mime':'image/png'},{'id':FILE,'name':'generated.txt','mime':'text/plain'}]})
         if self.path.endswith('/'+IMAGE): return self.reply(200,PNG,'image/png')
         if self.path.endswith('/'+FILE): return self.reply(200,b'Generated downloadable document fixture.\nExact bytes verified.','text/plain')

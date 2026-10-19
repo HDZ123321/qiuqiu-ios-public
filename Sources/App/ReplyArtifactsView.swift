@@ -37,7 +37,9 @@ struct ReplyArtifactCard: View {
                 Button { preview = true } label: { Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 220) }
                     .accessibilityLabel("预览图片 " + item.name).accessibilityIdentifier("reply-image")
             }
-            Text(item.name).font(.headline)
+            Text(item.name).font(.headline).fixedSize(horizontal: false, vertical: true)
+            Text(item.mime).font(.caption).foregroundStyle(.secondary)
+            Text(data.map { ByteCountFormatter.string(fromByteCount: Int64($0.count), countStyle: .file) } ?? "大小在下载后核实 · 上限 4 MB").font(.caption).foregroundStyle(.secondary)
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
             Button { Task { await download(); if localURL != nil { preview = true } } } label: {
                 Label(busy ? "下载中…" : "预览文件", systemImage: item.image ? "photo" : "doc.text")

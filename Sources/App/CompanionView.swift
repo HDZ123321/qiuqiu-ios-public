@@ -305,9 +305,13 @@ struct RunHistoryView: View {
     @State private var answerOpen = false
     @State private var answer = ""
     @State private var voiceChatID: UUID?
+    @State private var filesOpen = false
+    @State private var fileJump: UUID?
+    @State private var filesChatID: UUID?
+    @State private var filesSettings = ConnectionSettings()
     var body: some View {
         VStack(spacing: 0) {
-            ReadingMessageScroll(revision: "\(store.current?.messages.count ?? 0)-\(store.current?.messages.last?.content ?? "")", conversationID: store.current?.id) {
+            ReadingMessageScroll(revision: "\(store.current?.messages.count ?? 0)-\(store.current?.messages.last?.content ?? "")", conversationID: store.current?.id, jumpTarget: fileJump) {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         if store.current?.messages.isEmpty != false { Text("跟球球说说，今天想做什么？").font(.title3).foregroundStyle(.secondary).padding(.vertical, 40) }
                         ForEach(store.current?.messages ?? []) { message in
@@ -323,7 +327,8 @@ struct RunHistoryView: View {
                                 if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
                                     ReplyArtifactsView(runID: runID, settings: store.settings)
                                 }
-                            }.padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))
+                                if fileJump == message.id { Text("已定位来源消息").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("file-source-located") }
+                            }.id(message.id).padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))
                         }
                     }.padding(18)
             }
@@ -364,6 +369,19 @@ struct RunHistoryView: View {
                 Button { let text = draft; store.send(text); if store.busy { draft = "" } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("发送").disabled(!store.canSend || store.attachmentLoading || store.current?.archived == true || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.attachments.isEmpty))
             }.padding()
         }.navigationTitle(store.current?.title ?? "球球").navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $filesOpen) {
+            NavigationStack {
+                if let filesChatID {
+                    ConversationFilesView(chatID: filesChatID, settings: filesSettings) { source in
+                        guard ServerSessionImport.scope(filesSettings) == ServerSessionImport.scope(store.settings), ConversationFiles.canJump(source, in: store.chats) else { return false }
+                        store.selected = source.chatID
+                        fileJump = source.messageID
+                        filesOpen = false
+                        return true
+                    }.toolbar { Button("关闭文件列表") { filesOpen = false } }
+                }
+            }
+        }
         .sheet(isPresented: $answerOpen) {
             NavigationStack {
                 Form {
@@ -394,7 +412,12 @@ struct RunHistoryView: View {
         #endif
         .onDisappear { store.stopSync() }
         .onChange(of: store.current?.id) { _ in voiceOpen = false; if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } else { store.stopSync() } }
-        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { store.stopSync(); dismiss() } } }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { filesChatID = store.current?.id; filesSettings = store.settings; fileJump = nil; filesOpen = true } label: { Label("对话文件", systemImage: "folder") }.accessibilityIdentifier("conversation-files")
+            }
+            ToolbarItem(placement: .confirmationAction) { Button("完成") { store.stopSync(); dismiss() } }
+        }
     }
 }
 

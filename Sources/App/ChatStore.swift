@@ -52,6 +52,14 @@ import HermesCore
                 reply.content = "> A quoted explanation wraps at accessibility sizes.\n\n| Feature | Result |\n| --- | --- |\n| Table | Readable |\n\n[Example link](https://example.org)\n\n```swift\n" + String(repeating: "let longValue = \"horizontal scrolling preserves the whole line\"\n", count: 15) + "```\n\n" + String(repeating: "Long reply remains selectable and wraps with Dynamic Type. ", count: 50)
             }
             if ProcessInfo.processInfo.arguments.contains("--ui-typography") { reply.content = TypographyFixture.text; reply.artifactRunID = nil }
+            if ProcessInfo.processInfo.arguments.contains("--ui-conversation-files") {
+                if ProcessInfo.processInfo.arguments.contains("--ui-files-unavailable") { reply.artifactRunID = nil }
+                else if ProcessInfo.processInfo.arguments.contains("--ui-files-empty") { reply.artifactRunID = "run_empty" }
+                else if ProcessInfo.processInfo.arguments.contains("--ui-files-error") { reply.artifactRunID = "run_error" }
+                else if ProcessInfo.processInfo.arguments.contains("--ui-files-long") { reply.artifactRunID = "run_long" }
+                else { reply.artifactRunID = "run_files" }
+                reply.content = "File source message · stable fixture provenance"
+            }
             var chat = Chat(messages: [reply])
             if ProcessInfo.processInfo.arguments.contains("--ui-approval") {
                 chat.run = try? PendingRun(input: "synthetic fixture", model: "fixture", sessionID: nil, history: [], replyID: reply.id)
