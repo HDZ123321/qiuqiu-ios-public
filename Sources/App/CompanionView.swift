@@ -305,10 +305,12 @@ struct RunHistoryView: View {
     @State private var answerOpen = false
     @State private var answer = ""
     @State private var voiceChatID: UUID?
-    @State private var filesOpen = false
+    private struct FileContext: Identifiable {
+        let id: UUID
+        let settings: ConnectionSettings
+    }
+    @State private var fileContext: FileContext?
     @State private var fileJump: UUID?
-    @State private var filesChatID: UUID?
-    @State private var filesSettings = ConnectionSettings()
     var body: some View {
         VStack(spacing: 0) {
             ReadingMessageScroll(revision: "\(store.current?.messages.count ?? 0)-\(store.current?.messages.last?.content ?? "")", conversationID: store.current?.id, jumpTarget: fileJump) {
@@ -369,16 +371,14 @@ struct RunHistoryView: View {
                 Button { let text = draft; store.send(text); if store.busy { draft = "" } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("发送").disabled(!store.canSend || store.attachmentLoading || store.current?.archived == true || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.attachments.isEmpty))
             }.padding()
         }.navigationTitle(store.current?.title ?? "球球").navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $filesOpen) {
+        .sheet(item: $fileContext) { context in
             NavigationStack {
-                if let filesChatID {
-                    ConversationFilesView(chatID: filesChatID, settings: filesSettings) { source in
-                        guard let messageID = try? store.locateFileSource(source, settings: filesSettings) else { return false }
-                        fileJump = messageID
-                        filesOpen = false
-                        return true
-                    }.toolbar { Button("关闭文件列表") { filesOpen = false } }
-                }
+                ConversationFilesView(chatID: context.id, settings: context.settings) { source in
+                    guard let messageID = try? store.locateFileSource(source, settings: context.settings) else { return false }
+                    fileJump = messageID
+                    fileContext = nil
+                    return true
+                }.toolbar { Button("关闭文件列表") { fileContext = nil } }
             }
         }
         .sheet(isPresented: $answerOpen) {
@@ -413,7 +413,7 @@ struct RunHistoryView: View {
         .onChange(of: store.current?.id) { _ in voiceOpen = false; if let chat = store.current, chat.sessionID != nil { store.startSync(for: chat.id) } else { store.stopSync() } }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button { filesChatID = store.current?.id; filesSettings = store.settings; fileJump = nil; filesOpen = true } label: { Label("对话文件", systemImage: "folder") }.accessibilityIdentifier("conversation-files")
+                Button { if let id = store.current?.id { fileJump = nil; fileContext = FileContext(id: id, settings: store.settings) } } label: { Label("对话文件", systemImage: "folder") }.accessibilityIdentifier("conversation-files")
             }
             ToolbarItem(placement: .confirmationAction) { Button("完成") { store.stopSync(); dismiss() } }
         }
