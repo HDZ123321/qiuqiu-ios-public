@@ -2,6 +2,30 @@ import XCTest
 @testable import HermesCore
 
 final class ConversationFilesTests: XCTestCase {
+    func testArtifactDedupKeepsVerifiedMessageAndMissingTargetFailsClosed() throws {
+        var reply = ChatMessage(role: "assistant", content: "fixture")
+        reply.artifactRunID = "run_real"
+        let chat = Chat(messages: [reply])
+        let source = try XCTUnwrap(ConversationFiles.sources(in: chat).first)
+        let artifact = try JSONDecoder().decode(ReplyArtifact.self, from: Data(("{\"id\":\"" + String(repeating: "a", count: 64) + "\",\"name\":\"报告.txt\",\"mime\":\"text/plain\"}").utf8))
+        var index = ConversationFiles.Index()
+        index.append([artifact, artifact], from: source)
+        index.append([artifact], from: source)
+        XCTAssertEqual(index.items.count, 1)
+        XCTAssertEqual(index.items.first?.source.messageID, reply.id)
+        XCTAssertTrue(ConversationFiles.canJump(source, in: [chat]))
+        var missing = chat; missing.messages = []
+        XCTAssertFalse(ConversationFiles.canJump(source, in: [missing]))
+        var wrong = chat; wrong.id = UUID()
+        XCTAssertFalse(ConversationFiles.canJump(source, in: [wrong]))
+    }
+
+    func testEmptyAndUnmappedConversationNeverInventFileSources() {
+        XCTAssertTrue(ConversationFiles.sources(in: Chat()).isEmpty)
+        let old = Chat(messages: [ChatMessage(role: "assistant", content: "MEDIA:/home/private/report.pdf")])
+        XCTAssertTrue(ConversationFiles.sources(in: old).isEmpty)
+    }
+
     func testOnlyExplicitAssistantRunProvenanceNotPathsOrUploads() {
         var reply = ChatMessage(role: "assistant", content: "MEDIA:/synthetic/report.txt")
         reply.artifactRunID = "run_real"
