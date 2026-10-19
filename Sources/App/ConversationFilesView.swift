@@ -31,7 +31,7 @@ struct ConversationFilesView: View {
                             Button { if !jump(entry.source) { error = "来源消息已删除、不可用或连接已变化。" } } label: {
                                 Label("回到来源消息", systemImage: "arrow.uturn.backward")
                             }.accessibilityIdentifier("conversation-file-jump")
-                        }.padding(.vertical, 6)
+                        }.buttonStyle(.borderless).padding(.vertical, 6)
                     }
                 }
             }
