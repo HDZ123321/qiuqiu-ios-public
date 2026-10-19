@@ -42,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('Authorization')!='Bearer synthetic-fixture-only': return self.reply(401,{})
         if self.path=='/v1/runs' and isinstance(data.get('input'),str):
             quoted=data['input']
-            valid='引用消息（' in quoted and 'Generated reply' in quoted and 'manual synthetic reply' in quoted and 'MEDIA:' not in quoted
+            valid='引用消息（' in quoted and 'Generated reply' in quoted and 'manual synthetic reply' in quoted and 'MEDIA:' not in quoted and 'QIUQIU_FILE:' not in quoted
             quote_output='QUOTE PAYLOAD VERIFIED' if valid else 'QUOTE PAYLOAD INVALID'
             return self.reply(200,{'run_id':'run_quote_fixture','status':'completed','session_id':'quote_session','output':quote_output})
         if self.path=='/v1/runs/run_fixture/approval' and data.get('request_id')=='request_fixture' and data.get('choice') in ['once','deny'] and set(data)=={'request_id','choice'}:

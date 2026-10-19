@@ -5,7 +5,7 @@ final class RunTests: XCTestCase {
     func testNewDeliveryOptInAndOldPersistedBodyRemainExact() throws {
         let fresh = try PendingRun(input: "generate file", model: "fixture", sessionID: nil, history: [], replyID: UUID())
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: fresh.body) as? [String: Any])
-        XCTAssertEqual(payload["artifact_delivery"] as? String, "workspace-media-v1")
+        XCTAssertEqual(payload["artifact_delivery"] as? String, "workspace-file-v2")
         XCTAssertEqual(payload["input"] as? String, "generate file")
         var stored = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(fresh)) as? [String: Any])
         let oldBody = Data(#"{"input":"old pending","model":"fixture"}"#.utf8)

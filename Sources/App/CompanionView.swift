@@ -329,7 +329,7 @@ struct RunHistoryView: View {
                                 if ["user", "assistant"].contains(message.role), !message.content.isEmpty {
                                     Button { selectQuote(message) } label: { Label("引用", systemImage: "quote.bubble") }.buttonStyle(.borderless).contextMenu { Button("引用这条消息") { selectQuote(message) } }.accessibilityIdentifier("reply-quote")
                                 }
-                                if message.role == "assistant", message.content.contains("MEDIA:"), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
+                                if message.role == "assistant", (message.content.contains("MEDIA:") || message.content.contains("QIUQIU_FILE:")), let runID = message.artifactRunID ?? (store.current?.run?.replyID == message.id ? store.current?.run?.runID : nil) {
                                     ReplyArtifactsView(runID: runID, settings: store.settings)
                                 }
                             }.id(message.id).padding(16).frame(maxWidth: .infinity, alignment: .leading).background(message.role == "user" ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 20))

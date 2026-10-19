@@ -33,13 +33,13 @@ class GeneratedDelivery(unittest.IsolatedAsyncioTestCase):
                 # projection tells it the authorized delivery contract.
                 text = json.dumps(payload['input'], ensure_ascii=False)
                 self.assertIn(str(root), text)
-                self.assertIn('MEDIA:', text)
+                self.assertIn('QIUQIU_FILE:', text)
                 self.assertIn('write', text.lower())
                 self.assertNotIn('artifact_delivery', payload)
                 (root/'one.txt').write_bytes(b'1')
                 return web.json_response({'run_id':'run_generated','status':'queued'},status=202)
             async def status(request):
-                return web.json_response({'run_id':'run_generated','session_id':'session_fixture','status':'completed','output':f'MEDIA:{root}/one.txt'})
+                return web.json_response({'run_id':'run_generated','session_id':'session_fixture','status':'completed','output':f'QIUQIU_FILE:{root}/one.txt'})
             upstream = TestServer(web.Application())
             upstream.app.router.add_post('/v1/runs', create)
             upstream.app.router.add_get('/v1/runs/run_generated', status)
@@ -52,7 +52,7 @@ class GeneratedDelivery(unittest.IsolatedAsyncioTestCase):
                     app['client']=session; app.router.add_route('*','/{tail:.*}',handle)
                     async with TestClient(TestServer(app)) as client:
                         h={'Authorization':'Bearer app-fixture','Idempotency-Key':'fixture-new-v1'}
-                        body={'input':'发个txt文件给我。内容为1。','model':'fixture','artifact_delivery':'workspace-media-v1'}
+                        body={'input':'发个txt文件给我。内容为1。','model':'fixture','artifact_delivery':'workspace-file-v2'}
                         r=await client.post('/v1/runs',headers=h,json=body)
                         self.assertEqual(r.status,202,await r.text())
                         r=await client.post('/v1/runs',headers=h,json=body)

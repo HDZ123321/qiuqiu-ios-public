@@ -41,7 +41,7 @@ public struct PendingRun: Codable, Equatable {
         key = UUID().uuidString; self.replyID = replyID; self.sessionID = sessionID
         createdAt = Date(); status = "creating"
         try AttachmentFailure.validateMessage(count: attachments.count, bytes: attachments.reduce(0, { $0 + $1.data.count }))
-        var payload: [String: Any] = ["input": input, "model": model]
+        var payload: [String: Any] = ["input": input, "model": model, "artifact_delivery": "workspace-file-v2"]
         if !attachments.isEmpty { payload["attachments"] = attachments.map(\.payload) }
         if let sessionID { payload["session_id"] = sessionID }
         else if !history.isEmpty {

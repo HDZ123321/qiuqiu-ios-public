@@ -46,7 +46,7 @@ import HermesCore
         }
         if ProcessInfo.processInfo.arguments.contains("--ui-replies") {
             settings.serverURL = "https://fixture.invalid"; settings.bearer = "synthetic-fixture-only"
-            var reply = ChatMessage(role: "assistant", content: "Generated reply\nMEDIA:/synthetic/workspace/generated.png\nMEDIA:/synthetic/workspace/generated.txt")
+            var reply = ChatMessage(role: "assistant", content: "Generated reply\nQIUQIU_FILE:/synthetic/workspace/generated.png\nQIUQIU_FILE:/synthetic/workspace/generated.txt")
             reply.artifactRunID = "run_fixture"
             if ProcessInfo.processInfo.arguments.contains("--ui-formatting") {
                 reply.content = "> A quoted explanation wraps at accessibility sizes.\n\n| Feature | Result |\n| --- | --- |\n| Table | Readable |\n\n[Example link](https://example.org)\n\n```swift\n" + String(repeating: "let longValue = \"horizontal scrolling preserves the whole line\"\n", count: 15) + "```\n\n" + String(repeating: "Long reply remains selectable and wraps with Dynamic Type. ", count: 50)

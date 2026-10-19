@@ -17,7 +17,7 @@ ROUTE = re.compile(r'/v1/app/artifacts/(run_[A-Za-z0-9_-]+)(?:/([a-f0-9]{64}))?\
 def references(text, root):
     root = Path(root).resolve(strict=True)
     items = []
-    for match in re.finditer(r'(?:^|\s)MEDIA:(?:"([^"\n]+)"|([^\s]+))', text or ''):
+    for match in re.finditer(r'(?:^|\s)(?:MEDIA:|QIUQIU_FILE:)(?:"([^"\n]+)"|([^\s]+))', text or ''):
         candidate = Path(match[1] or match[2])
         try:
             relative = candidate.relative_to(root)

@@ -8,7 +8,7 @@ public struct MessageQuote: Codable, Equatable {
     public let text: String
     public static func capture(_ message: ChatMessage, conversationID: UUID) -> MessageQuote? {
         guard ["user", "assistant"].contains(message.role), !message.content.isEmpty || message.attachmentNames?.isEmpty == false else { return nil }
-        let body = message.content.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("MEDIA:") }.joined(separator: "\n")
+        let body = message.content.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("MEDIA:") && !$0.trimmingCharacters(in: .whitespaces).hasPrefix("QIUQIU_FILE:") }.joined(separator: "\n")
         let files = (message.attachmentNames ?? []).map { "附件引用（未包含文件内容）：" + $0 }.joined(separator: "\n")
         let raw = [body, files].filter { !$0.isEmpty }.joined(separator: "\n")
         let safe = raw.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) || $0 == "\n" || $0 == "\t" }.map(String.init).joined()

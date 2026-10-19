@@ -41,7 +41,7 @@ jobs:
           export QIU_HERMES_SOURCE="$RUNNER_TEMP/native-hermes"
           mkdir -p evidence
           python scripts/verify_native_approval.py 2>&1 | tee evidence/native-approval.log
-          for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron artifacts artifact_http; do
+          for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron artifacts artifact_http generated_delivery; do
             python "scripts/test_${test}.py" 2>&1 | tee "evidence/backend-${test}.log"
           done
       - name: Swift regression with loopback SSE fixture only
@@ -107,11 +107,11 @@ jobs:
           xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 19
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 20
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
-          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build19-unsigned.ipa Payload)
-          shasum -a 256 build/QiuQiu-Build19-unsigned.ipa | tee evidence/SHA256SUMS
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build20-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build20-unsigned.ipa | tee evidence/SHA256SUMS
       - name: Export screenshots and metadata on every outcome
         if: always()
         run: |
@@ -130,9 +130,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !inputs.core_only }}
         with:
-          name: QiuQiu-Build19-unsigned-ipa
+          name: QiuQiu-Build20-unsigned-ipa
           path: |
-            build/QiuQiu-Build19-unsigned.ipa
+            build/QiuQiu-Build20-unsigned.ipa
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error
