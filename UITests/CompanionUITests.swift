@@ -200,22 +200,15 @@ final class CompanionUITests: XCTestCase {
         let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy")).firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("reply-generated-file-share")
         copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
-        for _ in 0..<5 { if app.buttons["reply-answer"].isHittable { break }; app.swipeDown() }
+        let quote = app.buttons["reply-quote"].firstMatch
+        for _ in 0..<5 { if quote.isHittable { break }; app.swipeDown() }
         let composer = app.textFields.firstMatch
         composer.tap(); composer.typeText("Preserve existing draft")
-        app.buttons["reply-answer"].tap()
-        app.buttons["取消"].tap()
+        quote.tap()
+        XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
+        screenshot("reply-real-quotation-draft")
+        app.buttons["quote-cancel"].tap()
         XCTAssertEqual(composer.value as? String, "Preserve existing draft")
-        app.buttons["reply-answer"].tap()
-        XCTAssertTrue(app.textFields["answer-text"].waitForExistence(timeout: 5))
-        app.textFields["answer-text"].tap()
-        let field = app.textFields["answer-text"]
-        field.press(forDuration: 1)
-        if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap(); field.typeText("My explicit answer") }
-        else { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "Preserve existing draft".count) + "My explicit answer") }
-        screenshot("reply-answer-native-contract-limit")
-        app.buttons["answer-draft"].tap()
-        XCTAssertEqual(app.textFields.firstMatch.value as? String, "My explicit answer")
         XCTAssertTrue(app.buttons["发送"].isEnabled)
     }
     func testReplyFormattingLargeTextAndApprovalConfirmation() {
@@ -302,15 +295,15 @@ final class CompanionUITests: XCTestCase {
         screenshot("server-session-ongoing-busy-sync")
     }
     func testVoiceEntryCancelDoesNotSendOrReplaceDraft() {
-        let app = XCUIApplication(); app.launchArguments = ["--ui-history"]; app.launch()
+        let app = XCUIApplication(); app.launchArguments = ["--ui-history", "--ui-inline-voice"]; app.launch()
         app.buttons["跟我说"].tap()
         let composer = app.textFields.firstMatch
         XCTAssertTrue(composer.waitForExistence(timeout: 5))
         composer.tap(); composer.typeText("keep draft")
         app.buttons["voice-input"].tap()
-        XCTAssertTrue(app.buttons["voice-start"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["voice-insert"].isEnabled)
-        screenshot("voice-on-device-disclosure")
+        XCTAssertTrue(app.buttons["voice-stop"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        screenshot("voice-inline-on-device-disclosure")
         app.buttons["voice-cancel"].tap()
         XCTAssertTrue(app.buttons["voice-input"].waitForExistence(timeout: 5))
         XCTAssertEqual(composer.value as? String, "keep draft")

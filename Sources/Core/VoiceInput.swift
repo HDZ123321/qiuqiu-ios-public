@@ -32,7 +32,8 @@ public enum VoiceInputEvent { case transcript(String, final: Bool), failed(Voice
     public init(driver: VoiceInputDriver) { self.driver = driver }
 
     public func start(at now: TimeInterval) async {
-        guard phase == .idle else { return }
+        guard ![.authorizing, .recording, .finishing].contains(phase) else { return }
+        transcript = ""; permission = .allowed; failure = nil; elapsed = 0
         generation = UUID()
         let token = generation
         phase = .authorizing; ownsDriver = true; changed?()
