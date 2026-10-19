@@ -1,7 +1,27 @@
 import XCTest
 @testable import HermesCore
+@testable import HermesTransport
 
 final class ConversationFilesTests: XCTestCase {
+    @MainActor func testFileBrowsingJumpPreservesPendingRunAndRejectsChangedConnection() throws {
+        var running = Chat()
+        running.run = try PendingRun(input: "fixture", model: "fixture", sessionID: nil, history: [], replyID: UUID())
+        var reply = ChatMessage(role: "assistant", content: "source")
+        reply.artifactRunID = "run_source"
+        let history = Chat(messages: [reply])
+        let source = try XCTUnwrap(ConversationFiles.sources(in: history).first)
+        let store = ChatStore(initialChats: [running, history], save: { _ in })
+        let settings = store.settings
+        XCTAssertEqual(try store.locateFileSource(source, settings: settings), reply.id)
+        XCTAssertEqual(store.selected, history.id)
+        XCTAssertEqual(store.activeRun?.key, running.run?.key)
+        XCTAssertEqual(store.activeRun?.body, running.run?.body)
+        XCTAssertFalse(store.canSend)
+        store.settings.bearer = "changed-synthetic-scope"
+        XCTAssertThrowsError(try store.locateFileSource(source, settings: settings))
+        XCTAssertEqual(store.activeRun?.key, running.run?.key)
+    }
+
     func testArtifactDedupKeepsVerifiedMessageAndMissingTargetFailsClosed() throws {
         var reply = ChatMessage(role: "assistant", content: "fixture")
         reply.artifactRunID = "run_real"
