@@ -255,7 +255,7 @@ import HermesCore
     }
     func resume() {
         #if DEBUG && targetEnvironment(simulator)
-        if ProcessInfo.processInfo.arguments.contains("--ui-replies") { return }
+        if ProcessInfo.processInfo.arguments.contains("--ui-replies"), !ProcessInfo.processInfo.arguments.contains("--ui-quote-send") { return }
         if ProcessInfo.processInfo.arguments.contains("--ui-busy") { return } // No network or credentials in UI fixtures.
         #endif
         foreground = true

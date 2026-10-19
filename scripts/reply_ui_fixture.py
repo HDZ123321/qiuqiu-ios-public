@@ -22,6 +22,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path=='/ready': return self.reply(200,{})
         if self.headers.get('Authorization')!='Bearer synthetic-fixture-only': return self.reply(401,{})
+        if self.path=='/v1/capabilities': return self.reply(200,{'features':{'run_submission':True,'run_status':True,'run_stop':True,'run_approval_response':True,'runs_idempotency':{'supported':True,'durable':True,'retention_seconds':86400}}})
         if self.path=='/v1/app/artifacts/run_empty': return self.reply(200,{'items':[]})
         if self.path=='/v1/app/artifacts/run_error': return self.reply(403,{})
         if self.path in ['/v1/app/artifacts/run_files','/v1/app/artifacts/run_long']:

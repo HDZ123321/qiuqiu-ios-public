@@ -3,7 +3,7 @@ import XCTest
 final class CompanionUITests: XCTestCase {
     func testQuoteManualSendReachesFixtureAndVoiceDenialBackground() {
         let app = XCUIApplication()
-        app.launchArguments = ["--ui-replies"]
+        app.launchArguments = ["--ui-replies", "--ui-quote-send"]
         app.launch(); app.buttons["跟我说"].tap()
         app.buttons["reply-quote"].firstMatch.tap()
         XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))

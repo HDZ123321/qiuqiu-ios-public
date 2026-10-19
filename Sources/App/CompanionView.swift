@@ -453,7 +453,7 @@ struct RunHistoryView: View {
                 if voice.session.phase == .failed, voice.session.permission != .allowed {
                     Button("打开系统设置") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
                 }
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.vertical, 8)
         }
     }
 }
