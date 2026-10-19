@@ -6,6 +6,14 @@ on:
         description: 'Targeted message parser and UI gate before release regression'
         type: boolean
         default: false
+      files_only:
+        description: 'Targeted conversation files UI gate'
+        type: boolean
+        default: false
+      core_only:
+        description: 'Swift-only provenance regression gate'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -18,7 +26,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Isolated backend regressions with public native cron source
-        if: ${{ !inputs.typography_only }}
+        if: ${{ !inputs.typography_only && !inputs.files_only && !inputs.core_only }}
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/ci-venv"
@@ -42,20 +50,25 @@ jobs:
           export NO_PROXY=127.0.0.1,localhost
           export no_proxy=127.0.0.1,localhost
           curl --noproxy '*' --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 1 --connect-timeout 2 --max-time 3 http://127.0.0.1:18765/ready > /dev/null
-          if [ "${{ inputs.typography_only }}" = true ]; then
+          if [ "${{ inputs.core_only }}" = true ]; then
+            swift test --filter ConversationFilesTests 2>&1 | tee evidence/swift-test.log
+          elif [ "${{ inputs.typography_only }}" = true ]; then
             swift test --filter 'MessageTypographyTests|ReplyPresentationTests' 2>&1 | tee evidence/swift-test.log
           else
             swift test --skip LiveRunTests --skip WorkspaceLiveTests 2>&1 | tee evidence/swift-test.log
           fi
       - name: Generate Xcode project
+        if: ${{ !inputs.core_only }}
         run: |
           brew install xcodegen
           xcodegen generate
       - name: Build real unsigned iPhoneOS arm64 candidate
+        if: ${{ !inputs.core_only }}
         run: |
           set -euo pipefail
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee evidence/device-build.log
       - name: Simulator smoke and injected voice state acceptance
+        if: ${{ !inputs.core_only }}
         run: |
           set -euo pipefail
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for k,v in d["devices"].items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
@@ -74,6 +87,7 @@ jobs:
           fi
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
+        if: ${{ !inputs.core_only }}
         run: |
           set -euo pipefail
           mkdir -p build/package/Payload
@@ -104,6 +118,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.core_only }}
         with:
           name: QiuQiu-Build16-unsigned-ipa
           path: |
