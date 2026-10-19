@@ -171,6 +171,17 @@ import HermesCore
             syncState[chatID] = "stale" // Honest: last check failed; not "live".
         }
     }
+    /// Read-only navigation. Never resume, submit, detach, or redirect the stop target.
+    func locateFileSource(_ source: ConversationFiles.Source, settings configuration: ConnectionSettings) throws -> UUID {
+        guard ServerSessionImport.scope(configuration) == ServerSessionImport.scope(settings),
+              ConversationFiles.canJump(source, in: chats),
+              let chat = chats.first(where: { $0.id == source.chatID }),
+              chat.serverSource == nil || chat.serverSource?.scope == ServerSessionImport.scope(configuration) else {
+            throw ClientError.message("来源消息已删除、不可用或连接已变化。")
+        }
+        selected = source.chatID
+        return source.messageID
+    }
     func newChat() {
         guard !busy else { return }
         let chat = Chat(); chats.insert(chat, at: 0); selected = chat.id; toolProgress = ""; persist()

@@ -373,9 +373,8 @@ struct RunHistoryView: View {
             NavigationStack {
                 if let filesChatID {
                     ConversationFilesView(chatID: filesChatID, settings: filesSettings) { source in
-                        guard ServerSessionImport.scope(filesSettings) == ServerSessionImport.scope(store.settings), ConversationFiles.canJump(source, in: store.chats) else { return false }
-                        store.selected = source.chatID
-                        fileJump = source.messageID
+                        guard let messageID = try? store.locateFileSource(source, settings: filesSettings) else { return false }
+                        fileJump = messageID
                         filesOpen = false
                         return true
                     }.toolbar { Button("关闭文件列表") { filesOpen = false } }

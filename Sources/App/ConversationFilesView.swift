@@ -57,7 +57,7 @@ struct ConversationFilesView: View {
                 guard !Task.isCancelled, ServerSessionImport.scope(settings) == ServerSessionImport.scope(store.settings), store.chats.contains(where: { $0.id == chatID }) else { return }
                 result.append(items, from: source)
             } catch is CancellationError { return }
-            catch { error = "部分文件来源暂时无法读取，请刷新重试。" }
+            catch { self.error = "部分文件来源暂时无法读取，请刷新重试。" }
         }
         index = result
     }
