@@ -13,6 +13,7 @@ IMAGE='a'*64
 FILE='b'*64
 DOC='c'*64
 status='waiting_for_approval'
+quote_output='NO QUOTE REQUEST RECEIVED'
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
     def reply(self,code,value,mime='application/json'):
@@ -31,12 +32,18 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=='/v1/app/artifacts/run_fixture': return self.reply(200,{'items':[{'id':IMAGE,'name':'generated.png','mime':'image/png'},{'id':FILE,'name':'generated.txt','mime':'text/plain'}]})
         if self.path.endswith('/'+IMAGE): return self.reply(200,PNG,'image/png')
         if self.path.endswith('/'+FILE): return self.reply(200,b'Generated downloadable document fixture.\nExact bytes verified.','text/plain')
+        if self.path=='/v1/runs/run_quote_fixture': return self.reply(200,{'run_id':'run_quote_fixture','status':'completed','session_id':'quote_session','output':quote_output})
         if self.path=='/v1/runs/run_fixture': return self.reply(200,{'run_id':'run_fixture','status':status,'approval':{'request_id':'request_fixture','command':'Synthetic operation only: create a sample report','choices':['once','deny']}})
         return self.reply(404,{})
     def do_POST(self):
-        global status
+        global status, quote_output
         data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}')
         if self.headers.get('Authorization')!='Bearer synthetic-fixture-only': return self.reply(401,{})
+        if self.path=='/v1/runs' and isinstance(data.get('input'),str):
+            quoted=data['input']
+            valid='引用消息（' in quoted and 'Generated reply' in quoted and 'manual synthetic reply' in quoted and 'MEDIA:' not in quoted
+            quote_output='QUOTE PAYLOAD VERIFIED' if valid else 'QUOTE PAYLOAD INVALID'
+            return self.reply(200,{'run_id':'run_quote_fixture','status':'completed','session_id':'quote_session','output':quote_output})
         if self.path=='/v1/runs/run_fixture/approval' and data.get('request_id')=='request_fixture' and data.get('choice') in ['once','deny'] and set(data)=={'request_id','choice'}:
             status='completed'; return self.reply(200,{'resolved':1})
         return self.reply(400,{})

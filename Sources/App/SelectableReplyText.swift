@@ -25,6 +25,7 @@ struct SelectableReplyText: UIViewRepresentable {
         return view
     }
     func updateUIView(_ view: UITextView, context: Context) {
+        view.accessibilityIdentifier = monospaced || naturalWidth ? "quote-gesture-excluded" : nil
         context.coordinator.openURL = openURL
         let attributed = Self.attributed(text, style: style, semibold: semibold, monospaced: monospaced, markdown: markdown)
         // Timer/stream updates must not reset an unchanged native selection.

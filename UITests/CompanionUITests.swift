@@ -1,11 +1,39 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testQuoteManualSendReachesFixtureAndVoiceDenialBackground() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies"]
+        app.launch(); app.buttons["跟我说"].tap()
+        app.buttons["reply-quote"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
+        let composer = app.textFields.firstMatch
+        composer.tap(); composer.typeText("manual synthetic reply")
+        XCTAssertFalse(app.textViews.matching(NSPredicate(format: "value == %@", "QUOTE PAYLOAD VERIFIED")).firstMatch.exists)
+        screenshot("quote-manual-send-before-request")
+        app.buttons["发送"].tap()
+        XCTAssertTrue(app.textViews.matching(NSPredicate(format: "value == %@", "QUOTE PAYLOAD VERIFIED")).firstMatch.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["quote-cancel"].exists)
+        screenshot("quote-actual-serialized-input-fixture-readback")
+        app.terminate()
+        app.launchArguments = ["--ui-replies", "--ui-inline-voice", "--ui-voice-denied"]
+        app.launch(); app.buttons["跟我说"].tap(); app.buttons["voice-input"].tap()
+        XCTAssertTrue(app.buttons["打开系统设置"].waitForExistence(timeout: 5))
+        screenshot("inline-voice-permission-denied")
+        app.terminate()
+        app.launchArguments = ["--ui-replies", "--ui-inline-voice"]
+        app.launch(); app.buttons["跟我说"].tap(); app.buttons["voice-input"].tap()
+        XCTAssertTrue(app.buttons["voice-stop"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home); app.activate()
+        XCTAssertFalse(app.buttons["voice-stop"].exists)
+        screenshot("inline-voice-background-stopped")
+    }
+
     func testLeftSwipeQuotesSpecificMessageAboveComposer() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-history"]
         app.launch(); app.buttons["跟我说"].tap()
-        let message = app.staticTexts["验收历史"]
+        let message = app.textViews.matching(NSPredicate(format: "value == %@", "验收历史")).firstMatch
         XCTAssertTrue(message.waitForExistence(timeout: 5))
         message.swipeLeft()
         XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
@@ -26,8 +54,21 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["voice-stop"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.navigationBars["语音输入"].exists, false)
         XCTAssertTrue(app.textFields.firstMatch.exists)
+        let partial = NSPredicate(format: "value == %@", "typed\nsynthetic words")
+        expectation(for: partial, evaluatedWith: composer)
+        waitForExpectations(timeout: 5)
+        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        screenshot("inline-voice-partial-in-existing-composer")
         app.buttons["voice-cancel"].tap()
         XCTAssertEqual(app.textFields.firstMatch.value as? String, "typed")
+        app.buttons["voice-input"].tap()
+        XCTAssertTrue(app.buttons["voice-stop"].waitForExistence(timeout: 5))
+        app.buttons["voice-stop"].tap()
+        let final = NSPredicate(format: "value == %@", "typed\nsynthetic words final")
+        expectation(for: final, evaluatedWith: composer)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.buttons["发送"].isEnabled)
+        screenshot("inline-voice-final-editable-manual-send")
     }
 
     func testConversationFilesListPreviewShareAndStableJumpDuringBusy() {
