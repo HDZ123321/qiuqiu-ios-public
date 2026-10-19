@@ -1,6 +1,33 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testPendingRunConnectionFieldsAcceptIndependentEdits() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies", "--ui-approval"]
+        app.launch()
+        app.tabBars.buttons["我的"].tap()
+        app.buttons["连接设置 · 诊断日志"].tap()
+        let address = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "https://your-server")).firstMatch
+        let token = app.secureTextFields.firstMatch
+        let model = app.textFields.matching(NSPredicate(format: "placeholderValue == %@", "模型 ID")).firstMatch
+        XCTAssertTrue(address.waitForExistence(timeout: 5))
+        XCTAssertTrue(address.isEnabled, "A pending run must not disable connection draft editing")
+        XCTAssertTrue(token.isEnabled, "The secure credential editor must accept focus")
+        XCTAssertTrue(model.isEnabled, "Model ID is a text editor, not a server-dependent picker")
+        guard address.isEnabled, token.isEnabled, model.isEnabled else { return }
+        address.tap(); address.clearAndEnter("https://unresolvable-settings.invalid")
+        XCTAssertEqual(address.value as? String, "https://unresolvable-settings.invalid")
+        token.tap(); token.typeText("synthetic-edit")
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        // Never inspect or print SecureField.value (even fixture-only credentials).
+        model.tap(); model.clearAndEnter("synthetic-model")
+        XCTAssertEqual(model.value as? String, "synthetic-model")
+        screenshot("pending-settings-independent-editors-token-masked")
+        app.buttons["取消"].tap()
+        app.tabBars.buttons["任务"].tap()
+        XCTAssertTrue(app.staticTexts["执行中心"].waitForExistence(timeout: 5))
+    }
+
     func testInlineVoiceErrorAndQuoteBusyDarkLargeText() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-replies", "--ui-inline-voice", "--ui-voice-error", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]

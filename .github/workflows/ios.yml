@@ -2,6 +2,10 @@ name: Public source iOS candidate
 on:
   workflow_dispatch:
     inputs:
+      settings_only:
+        description: 'Targeted pending-run settings editing regression'
+        type: boolean
+        default: false
       typography_only:
         description: 'Targeted message parser and UI gate before release regression'
         type: boolean
@@ -87,6 +91,9 @@ jobs:
           fi
           if [ "${{ inputs.files_only }}" = true ]; then
             EXTRA="-only-testing:QiuQiuUITests/CompanionUITests/testInlineVoiceErrorAndQuoteBusyDarkLargeText -only-testing:QiuQiuUITests/CompanionUITests/testQuoteManualSendReachesFixtureAndVoiceDenialBackground -only-testing:QiuQiuUITests/CompanionUITests/testLeftSwipeQuotesSpecificMessageAboveComposer -only-testing:QiuQiuUITests/CompanionUITests/testInlineVoiceShowsComposerWithoutSheet -only-testing:QiuQiuUITests/CompanionUITests/testConversationFilesListPreviewShareAndStableJumpDuringBusy -only-testing:QiuQiuUITests/CompanionUITests/testConversationFilesEmptyUnavailableErrorsAndHugeNames"
+          fi
+          if [ "${{ inputs.settings_only }}" = true ]; then
+            EXTRA="-only-testing:QiuQiuUITests/CompanionUITests/testPendingRunConnectionFieldsAcceptIndependentEdits"
           fi
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
