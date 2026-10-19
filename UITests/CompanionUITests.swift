@@ -567,8 +567,13 @@ final class CompanionUITests: XCTestCase {
         app.buttons["完成"].tap()
         app.tabBars.buttons["任务"].tap(); XCTAssertTrue(app.staticTexts["执行中心"].exists)
         app.tabBars.buttons["我的"].tap(); app.buttons["连接设置 · 诊断日志"].tap()
-        app.swipeUp()
         let export = app.buttons["导出诊断日志"]
+        let settingsForm = app.collectionViews.firstMatch
+        for _ in 0..<12 {
+            if export.exists && export.isHittable { break }
+            if settingsForm.exists { settingsForm.swipeUp(velocity: .slow) }
+            else { app.swipeUp(velocity: .slow) }
+        }
         XCTAssertTrue(export.waitForExistence(timeout: 5)); export.tap()
         XCTAssertTrue(app.buttons["分享诊断日志"].exists); screenshot("busy-settings-export")
     }
