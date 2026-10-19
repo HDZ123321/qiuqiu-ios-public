@@ -153,22 +153,12 @@ struct PDFDocumentPreview: UIViewRepresentable {
 }
 struct WorkspaceShare: UIViewControllerRepresentable {
     let url: URL
-    func makeUIViewController(context:Context) -> ShareHost { ShareHost(url:url) }
-    func updateUIViewController(_ controller:ShareHost,context:Context) {}
-    final class ShareHost: UIViewController {
-        let url:URL
-        var presented=false
-        init(url:URL) { self.url=url; super.init(nibName:nil,bundle:nil) }
-        required init?(coder:NSCoder) { fatalError("Not supported") }
-        override func viewDidAppear(_ animated:Bool) {
-            super.viewDidAppear(animated)
-            guard !presented else { return }; presented=true
-            let activity=UIActivityViewController(activityItems:[url],applicationActivities:nil)
-            activity.popoverPresentationController?.sourceView=view
-            activity.popoverPresentationController?.sourceRect=CGRect(x:view.bounds.midX,y:view.bounds.midY,width:1,height:1)
-            present(activity,animated:true)
-        }
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        // Return the native controller itself. Presenting another modal from a
+        // host's viewDidAppear races SwiftUI's sheet transition and can be blank.
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
     }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 struct NativeDocumentPreview: UIViewControllerRepresentable {
     let url: URL

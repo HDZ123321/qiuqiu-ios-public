@@ -17,6 +17,8 @@ final class CompanionUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["--ui-replies", "--ui-approval", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
         app.launch(); app.buttons["跟我说"].tap()
+        if !app.buttons["conversation-files"].waitForExistence(timeout: 5) { app.buttons["跟我说"].tap() }
+        XCTAssertTrue(app.buttons["conversation-files"].waitForExistence(timeout: 5))
         let quote = app.buttons["reply-quote"].firstMatch
         for _ in 0..<6 { if quote.isHittable { break }; app.swipeDown() }
         quote.tap()
