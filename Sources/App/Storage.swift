@@ -5,8 +5,18 @@ import HermesCore
 #endif
 
 enum CredentialStore {
+    #if DEBUG && targetEnvironment(simulator)
+    // Unsigned simulator UI runners lack Keychain entitlement (-34018).
+    // Fixture-only storage never reads/writes real credentials or ships in Release.
+    private static var fixtureConnections: [String: ConnectionSettings] = [:]
+    private static var fixtureSettings = ConnectionSettings()
+    private static var fixtureMode: Bool { ProcessInfo.processInfo.arguments.contains("--ui-replies") }
+    #endif
     private static var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "org.hermesclient.qiuqiu", kSecAttrAccount as String: "connection"] }
     static func load() throws -> ConnectionSettings {
+        #if DEBUG && targetEnvironment(simulator)
+        if fixtureMode { return fixtureSettings }
+        #endif
         var q = query
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -19,6 +29,9 @@ enum CredentialStore {
     // Connection snapshots live only in Keychain, never in chats/diagnostic exports.
     // Legacy pending runs acquire their original connection before settings can change.
     static func runConnection(_ key: String) throws -> ConnectionSettings? {
+        #if DEBUG && targetEnvironment(simulator)
+        if fixtureMode { return fixtureConnections[key] }
+        #endif
         var q = query; q[kSecAttrAccount as String] = "pending-connection-" + key
         q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
@@ -28,6 +41,9 @@ enum CredentialStore {
         return try JSONDecoder().decode(ConnectionSettings.self, from: data)
     }
     static func preserveRunConnection(_ key: String, settings: ConnectionSettings) throws {
+        #if DEBUG && targetEnvironment(simulator)
+        if fixtureMode { if fixtureConnections[key] == nil { fixtureConnections[key] = settings }; return }
+        #endif
         if try runConnection(key) != nil { return }
         var q = query; q[kSecAttrAccount as String] = "pending-connection-" + key
         q[kSecValueData as String] = try JSONEncoder().encode(settings)
@@ -36,6 +52,9 @@ enum CredentialStore {
         guard status == errSecSuccess else { throw ClientError.message("无法保留原任务连接，设置未更换。") }
     }
     static func save(_ settings: ConnectionSettings) throws {
+        #if DEBUG && targetEnvironment(simulator)
+        if fixtureMode { fixtureSettings = settings; return }
+        #endif
         let data = try JSONEncoder().encode(settings)
         let attributes: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
         var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
