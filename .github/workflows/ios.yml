@@ -55,7 +55,7 @@ jobs:
           export no_proxy=127.0.0.1,localhost
           curl --noproxy '*' --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 1 --connect-timeout 2 --max-time 3 http://127.0.0.1:18765/ready > /dev/null
           if [ "${{ inputs.core_only }}" = true ]; then
-            swift test --filter 'ConversationFilesTests|QuotationTests|VoiceInputTests' 2>&1 | tee evidence/swift-test.log
+            swift test --filter 'ConversationFilesTests|QuotationTests|VoiceInputTests|RunTests' 2>&1 | tee evidence/swift-test.log
           elif [ "${{ inputs.typography_only }}" = true ]; then
             swift test --filter 'MessageTypographyTests|ReplyPresentationTests' 2>&1 | tee evidence/swift-test.log
           else

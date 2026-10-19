@@ -102,4 +102,9 @@ async def handle(request):
     if kind not in ('all','conversations','internal'): raise web.HTTPBadRequest()
     try: payload=await asyncio.to_thread(read,request.app['profile_sessions_db'],sid,messages,limit,cursor,owned,kind)
     except sqlite3.Error: raise web.HTTPServiceUnavailable(text='Profile history unavailable')
+    if messages:
+        from restricted_proxy import display_delivery_text
+        for item in payload.get('items', []):
+            if item.get('role') == 'user':
+                item['content'] = display_delivery_text(item['content'], request.app.get('workspace'))
     return web.json_response(payload,headers=HEADERS)
