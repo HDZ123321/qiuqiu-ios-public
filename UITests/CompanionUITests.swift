@@ -1,6 +1,31 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testInlineVoiceErrorAndQuoteBusyDarkLargeText() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies", "--ui-inline-voice", "--ui-voice-error", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let composer = app.textFields.firstMatch
+        composer.tap(); composer.typeText("draft")
+        app.buttons["voice-input"].tap()
+        let status = app.staticTexts["voice-status"]
+        expectation(for: NSPredicate(format: "label CONTAINS %@", "语音识别失败"), evaluatedWith: status)
+        waitForExpectations(timeout: 8)
+        XCTAssertEqual(composer.value as? String, "draft\nsynthetic words")
+        XCTAssertTrue(app.buttons["发送"].isEnabled)
+        screenshot("inline-voice-error-partial-dark-large-keyboard")
+        app.terminate()
+        app.launchArguments = ["--ui-replies", "--ui-approval", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let quote = app.buttons["reply-quote"].firstMatch
+        for _ in 0..<6 { if quote.isHittable { break }; app.swipeDown() }
+        quote.tap()
+        XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        XCTAssertTrue(app.buttons["当前任务 · 查看详情"].exists)
+        screenshot("quote-browse-while-busy-dark-large")
+    }
+
     func testQuoteManualSendReachesFixtureAndVoiceDenialBackground() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-replies", "--ui-quote-send"]
