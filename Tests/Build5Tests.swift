@@ -179,6 +179,41 @@ final class Build5Tests: XCTestCase {
         XCTAssertEqual(reloaded.activeRun?.body, pending.body)
         XCTAssertEqual(reloaded.activeRun?.runID, pending.runID)
     }
+    @MainActor func testAmbiguousPendingRetryAfterSettingsChangeUsesOriginalBodyAndKey() async throws {
+        var pending = try PendingRun(input: "ambiguous synthetic", model: "old-model", sessionID: nil, history: [], replyID: UUID())
+        pending.admissionDispatched = true
+        var chat = Chat(); chat.run = pending
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [Build5Protocol.self]
+        let subject = ChatStore(api: HermesAPI(session: URLSession(configuration: config)), initialChats: [chat], save: { _ in })
+        var old = ConnectionSettings(); old.serverURL = "https://original-retry.invalid"; old.bearer = "old-synthetic"
+        subject.settings = old
+        var changed = old; changed.serverURL = "https://new-retry.invalid"; changed.bearer = "new-synthetic"
+        try subject.saveSettings(changed)
+        let finished = expectation(description: "same original intent replayed")
+        Build5Protocol.handler = { proto in
+            XCTAssertEqual(proto.request.url?.host, "original-retry.invalid")
+            if proto.request.url!.path.hasSuffix("capabilities") { proto.reply(200, Self.capabilities) }
+            else if proto.request.httpMethod == "POST" {
+                XCTAssertEqual(proto.request.value(forHTTPHeaderField: "Idempotency-Key"), pending.key)
+                var body = proto.request.httpBody ?? Data()
+                if let stream = proto.request.httpBodyStream {
+                    stream.open(); defer { stream.close() }
+                    var buffer = [UInt8](repeating: 0, count: 1024)
+                    while stream.hasBytesAvailable { let n = stream.read(&buffer, maxLength: buffer.count); if n <= 0 { break }; body.append(contentsOf: buffer.prefix(n)) }
+                }
+                XCTAssertEqual(body, pending.body)
+                proto.reply(200, #"{"run_id":"run_retry_origin","status":"completed"}"#)
+            } else {
+                proto.reply(200, #"{"run_id":"run_retry_origin","status":"completed","output":"synthetic complete"}"#)
+                finished.fulfill()
+            }
+        }
+        defer { subject.detach(); Build5Protocol.handler = nil }
+        subject.resume()
+        await fulfillment(of: [finished], timeout: 5)
+        XCTAssertEqual(subject.activeRun?.key, pending.key)
+        XCTAssertEqual(subject.activeRun?.body, pending.body)
+    }
     static let capabilities = #"{"features":{"run_submission":true,"run_status":true,"run_stop":true,"run_approval_response":true,"runs_idempotency":{"supported":true,"durable":true,"retention_seconds":86400}}}"#
 
     func testCompletedReplayHydratesAuthoritativeOutputAndSessionWithoutRegression() throws {
