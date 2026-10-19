@@ -45,7 +45,7 @@ public struct PendingRun: Codable, Equatable {
         if !attachments.isEmpty { payload["attachments"] = attachments.map(\.payload) }
         if let sessionID { payload["session_id"] = sessionID }
         else if !history.isEmpty {
-            payload["conversation_history"] = history.filter { !$0.content.isEmpty && $0.interrupted != true }.map { ["role": $0.role, "content": $0.content] }
+            payload["conversation_history"] = history.filter { !$0.content.isEmpty && $0.interrupted != true }.map { ["role": $0.role, "content": $0.wireContent] }
         }
         body = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
     }

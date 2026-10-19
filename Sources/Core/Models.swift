@@ -27,6 +27,8 @@ public struct ChatMessage: Codable, Identifiable {
     public var interrupted: Bool?
     public var attachmentNames: [String]?
     public var serverMessageID: String?
+    public var quote: MessageQuote?
+    public var wireContent: String { quote?.userContent(content) ?? content }
     public var artifactRunID: String?
     public init(role: String, content: String) { id = UUID(); self.role = role; self.content = content }
 }
@@ -56,7 +58,7 @@ public struct ChatRequest: Encodable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(model, forKey: .model)
         try c.encode(stream, forKey: .stream)
-        try c.encode(messages.map { WireMessage(role: $0.role, content: $0.content) }, forKey: .messages)
+        try c.encode(messages.map { WireMessage(role: $0.role, content: $0.wireContent) }, forKey: .messages)
     }
 }
 public enum StreamDelta {

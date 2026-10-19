@@ -1,6 +1,20 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testInlineVoiceShowsComposerWithoutSheet() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies", "--ui-inline-voice"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let composer = app.textFields.firstMatch
+        composer.tap(); composer.typeText("typed")
+        app.buttons["voice-input"].tap()
+        XCTAssertTrue(app.buttons["voice-stop"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.navigationBars["语音输入"].exists, false)
+        XCTAssertTrue(app.textFields.firstMatch.exists)
+        app.buttons["voice-cancel"].tap()
+        XCTAssertEqual(app.textFields.firstMatch.value as? String, "typed")
+    }
+
     func testConversationFilesListPreviewShareAndStableJumpDuringBusy() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-replies", "--ui-conversation-files", "--ui-approval"]
