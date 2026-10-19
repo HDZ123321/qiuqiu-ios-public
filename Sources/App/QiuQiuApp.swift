@@ -105,7 +105,7 @@ struct ChatView: View {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }.disabled(store.busy).accessibilityLabel("设置")
                 }
             }
-            .sheet(isPresented: $showSettings) { SettingsView(store: store) }
+            .sheet(isPresented: $showSettings) { NavigationStack { SettingsView(store: store) } }
             .sheet(isPresented: $showChats) {
                 NavigationStack {
                     List {
@@ -148,7 +148,6 @@ struct SettingsView: View {
     private let probeAPI = HermesAPI()
     init(store: ChatStore) { self.store = store; _value = State(initialValue: store.settings) }
     var body: some View {
-        NavigationStack {
             Form {
                 Section("球球连接") {
                     TextField("https://your-server", text: $value.serverURL).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -223,6 +222,5 @@ struct SettingsView: View {
                     }.disabled(checking || !store.canEditConnection)
                 }
             }
-        }
     }
 }

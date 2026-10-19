@@ -273,7 +273,7 @@ import HermesCore
         let token = UUID(); epoch = token
         let configuration: ConnectionSettings
         do { configuration = try connection(for: run) }
-        catch { self.error = "无法读取原任务连接；未向新地址发送请求。"; return }
+        catch { self.error = "无法读取原任务连接（代码 \((error as NSError).code)）；未向新地址发送请求。"; return }
         generation = Task {
             defer { if epoch == token { generation = nil; connected = false; eventTask?.cancel(); eventTask = nil; if foreground, let current, current.run?.terminal != false { startSync(for: current.id) } } }
             while !Task.isCancelled && foreground && epoch == token {

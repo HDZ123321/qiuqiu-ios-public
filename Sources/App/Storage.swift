@@ -24,7 +24,7 @@ enum CredentialStore {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(q as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = item as? Data else { throw ClientError.message("无法读取原任务连接。") }
+        guard status == errSecSuccess, let data = item as? Data else { throw NSError(domain: "PendingConnectionKeychain", code: Int(status)) }
         return try JSONDecoder().decode(ConnectionSettings.self, from: data)
     }
     static func preserveRunConnection(_ key: String, settings: ConnectionSettings) throws {
