@@ -1,6 +1,45 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testConversationFilesListPreviewShareAndStableJumpDuringBusy() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-replies", "--ui-conversation-files", "--ui-approval"]
+        app.launch(); app.buttons["跟我说"].tap()
+        let entry = app.buttons["conversation-files"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
+        XCTAssertTrue(app.staticTexts["本对话生成的文件"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(identifier: "conversation-file-jump").count, 3)
+        screenshot("conversation-files-list-busy")
+        let preview = app.buttons.matching(identifier: "reply-file-preview").element(boundBy: 1)
+        preview.tap()
+        XCTAssertTrue(app.staticTexts["Generated downloadable document fixture.\nExact bytes verified."].waitForExistence(timeout: 10))
+        screenshot("conversation-files-document-preview")
+        app.buttons["下载 / 分享产物"].tap()
+        let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy")).firstMatch
+        XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("conversation-files-native-share")
+        app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
+        app.buttons.matching(identifier: "conversation-file-jump").element(boundBy: 1).tap()
+        XCTAssertTrue(app.staticTexts["已定位来源消息"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["当前任务 · 查看详情"].exists)
+        XCTAssertFalse(app.buttons["发送"].isEnabled)
+        screenshot("conversation-files-source-message-busy")
+    }
+
+    func testConversationFilesEmptyUnavailableErrorsAndHugeNames() {
+        for mode in ["empty", "unavailable", "error", "long"] {
+            let app = XCUIApplication()
+            app.launchArguments = ["--ui-replies", "--ui-conversation-files", "--ui-files-" + mode, "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+            app.launch(); app.buttons["跟我说"].tap()
+            let entry = app.buttons["conversation-files"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
+            let expected = mode == "empty" ? "暂无可访问的生成文件" : mode == "unavailable" ? "此对话没有可核实的文件来源" : mode == "error" ? "部分文件来源暂时无法读取，请刷新重试。" : "本对话生成的文件"
+            XCTAssertTrue(app.staticTexts[expected].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.buttons["conversation-files-refresh"].exists)
+            screenshot("conversation-files-" + mode + "-huge-text")
+            app.terminate()
+        }
+    }
+
     func testReplyRangeSelectionCopiesOnlyTargetToComposer() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-replies", "--ui-typography", "--ui-selection"]
