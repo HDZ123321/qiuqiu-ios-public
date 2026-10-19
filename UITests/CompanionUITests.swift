@@ -20,7 +20,9 @@ final class CompanionUITests: XCTestCase {
         if !app.buttons["conversation-files"].waitForExistence(timeout: 5) { app.buttons["跟我说"].tap() }
         XCTAssertTrue(app.buttons["conversation-files"].waitForExistence(timeout: 5))
         let quote = app.buttons["reply-quote"].firstMatch
-        for _ in 0..<6 { if quote.isHittable { break }; app.swipeDown() }
+        let reading = app.scrollViews["message-reading-scroll"]
+        for _ in 0..<10 { if quote.isHittable { break }; reading.swipeDown(velocity: .slow) }
+        XCTAssertTrue(quote.isHittable)
         quote.tap()
         XCTAssertTrue(app.buttons["quote-cancel"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["发送"].isEnabled)
@@ -123,7 +125,7 @@ final class CompanionUITests: XCTestCase {
         app.buttons["下载 / 分享产物"].tap()
         let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy")).firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("conversation-files-native-share")
-        copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
+        copy.tap(); if app.buttons["关闭分享"].exists { app.buttons["关闭分享"].tap() }; app.buttons["关闭预览"].tap()
         app.buttons.matching(identifier: "conversation-file-jump").element(boundBy: 1).tap()
         XCTAssertTrue(app.staticTexts["已定位来源消息"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["已定位来源消息"].isHittable)
@@ -267,7 +269,7 @@ final class CompanionUITests: XCTestCase {
         app.buttons["下载 / 分享产物"].tap()
         let copy = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Copy")).firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 10)); screenshot("reply-generated-file-share")
-        copy.tap(); app.buttons["关闭分享"].tap(); app.buttons["关闭预览"].tap()
+        copy.tap(); if app.buttons["关闭分享"].exists { app.buttons["关闭分享"].tap() }; app.buttons["关闭预览"].tap()
         let quote = app.buttons["reply-quote"].firstMatch
         for _ in 0..<5 { if quote.isHittable { break }; app.swipeDown() }
         let composer = app.textFields.firstMatch
