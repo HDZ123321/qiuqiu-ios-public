@@ -56,7 +56,7 @@ struct ReplyArtifactCard: View {
                         Button { sharing = true } label: { Label("下载 / 分享产物", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered).padding()
                     }.navigationTitle(item.name).navigationBarTitleDisplayMode(.inline)
                     .toolbar { Button("关闭预览") { preview = false } }
-                    .sheet(isPresented: $sharing) { NavigationStack { WorkspaceShare(url: localURL).toolbar { Button("关闭分享") { sharing = false } } } }
+                    .sheet(isPresented: $sharing) { WorkspaceShare(url: localURL) }
                 }
             }
         }
