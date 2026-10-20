@@ -25,7 +25,7 @@ def references(text, root):
             if candidate.resolve(strict=True) != candidate: continue
             if candidate.suffix.lower() not in EXTENSIONS: continue
             info = candidate.stat()
-            if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_BYTES: continue
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= MAX_BYTES: continue
             if candidate not in items: items.append(candidate)
         except (ValueError,OSError): continue
         if len(items) == 16: break
@@ -44,7 +44,7 @@ def read(path,root):
             target=os.open(parts[-1],os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=fd)
             try:
                 info=os.fstat(target)
-                if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_BYTES: raise ValueError()
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= MAX_BYTES: raise ValueError()
                 data=os.read(target,MAX_BYTES+1)
                 if len(data)!=info.st_size: raise ValueError()
                 return data

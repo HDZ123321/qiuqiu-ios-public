@@ -31,17 +31,27 @@ final class CompanionUITests: XCTestCase {
         app.launch();app.tabBars.buttons["文件"].tap()
         app.buttons["workspace-project-selector"].tap()
         let name=app.textFields["project-name"]
+        let projectList=app.collectionViews.lastMatch
+        XCTAssertTrue(app.buttons["project-default"].waitForExistence(timeout:5))
+        for _ in 0..<6 { if name.exists && name.isHittable { break }; projectList.swipeUp() }
         XCTAssertTrue(name.waitForExistence(timeout:5)); name.tap();name.typeText("Synthetic created project")
-        app.buttons["project-create"].tap()
-        XCTAssertTrue(app.staticTexts["project-created-only.txt"].waitForExistence(timeout:5))
+        let create=app.buttons["project-create"]
+        for _ in 0..<3 { if create.isHittable { break }; projectList.swipeUp() }
+        create.tap()
+        let createdFile=app.staticTexts["project-created-only.txt"]
+        for _ in 0..<5 { if createdFile.exists && createdFile.isHittable { break }; app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(createdFile.waitForExistence(timeout:5))
         screenshot("projects-created-dark-large-files")
         app.terminate()
         app.launchArguments=["--ui-replies", "--ui-projects", "--ui-approval", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
         app.launch();app.tabBars.buttons["文件"].tap()
         app.buttons["workspace-project-selector"].tap()
         XCTAssertTrue(app.staticTexts["project-pending-block"].waitForExistence(timeout:5))
-        XCTAssertFalse(app.buttons["project-p_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"].isEnabled)
         screenshot("projects-pending-binding-block-dark-large")
+        let projectA=app.buttons["project-p_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+        for _ in 0..<5 { if projectA.exists { break }; app.collectionViews.lastMatch.swipeUp() }
+        XCTAssertTrue(projectA.exists)
+        XCTAssertFalse(projectA.isEnabled)
     }
 
     func testPendingRunConnectionFieldsAcceptIndependentEdits() {

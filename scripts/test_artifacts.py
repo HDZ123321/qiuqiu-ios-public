@@ -16,6 +16,20 @@ class Artifacts(unittest.TestCase):
             items = bridge.references(text,root)
             self.assertEqual([x.name for x in items], ['report.txt'])
             self.assertEqual(bridge.read(items[0],root),b'Generated fixture document')
+    def test_root_ancestor_symlink_replacement_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            base=Path(d).resolve(); scope=base/'scope';scope.mkdir(); root=scope/'project';root.mkdir()
+            (root/'one.txt').write_text('original')
+            other=base/'other';other.mkdir();(other/'project').mkdir();(other/'project'/'one.txt').write_text('wrong')
+            (root/'one.txt').unlink();root.rmdir();scope.rmdir();scope.symlink_to(other,target_is_directory=True)
+            with self.assertRaises(web.HTTPNotFound):bridge.read(root/'one.txt',root)
+    def test_hardlinked_file_is_not_a_deliverable_artifact(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d).resolve(); (root/'one.txt').write_text('one')
+            os.link(root/'one.txt',root/'two.txt')
+            self.assertEqual(bridge.references(f'MEDIA:{root}/one.txt',root),[])
+            with self.assertRaises(web.HTTPNotFound): bridge.read(root/'one.txt',root)
     def test_reference_recheck_rejects_symlink_replacement(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d).resolve(); p=root/'result.txt'; p.write_text('ok')
