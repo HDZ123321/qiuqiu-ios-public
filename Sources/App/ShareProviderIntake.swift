@@ -20,7 +20,8 @@ enum ShareProviderIntake {
             if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 let data = try await fileBytes(provider, type: UTType.image.identifier, limit: 64*1024*1024)
                 files.append(try await PhotoNormalizer.normalize(data))
-            } else if provider.registeredTypeIdentifiers.contains(UTType.fileURL.identifier) {
+            } else if provider.registeredTypeIdentifiers.contains(UTType.fileURL.identifier),
+                      !provider.registeredTypeIdentifiers.contains(where: { $0 != UTType.fileURL.identifier && $0 != UTType.url.identifier && UTType($0)?.conforms(to: .content) == true }) {
                 let object = try await item(provider, type: UTType.fileURL.identifier)
                 let candidate: URL?
                 if let url = object as? URL { candidate = url }
@@ -39,7 +40,7 @@ enum ShareProviderIntake {
                 let mime = UTType(type)?.preferredMIMEType ?? "application/octet-stream"
                 let name = try ChatAttachment.localName(provider.suggestedName.flatMap { ($0 as NSString).pathExtension.isEmpty ? $0+"."+ext : $0 } ?? "shared-"+UUID().uuidString+"."+ext, mime: mime)
                 files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
-            } else if provider.registeredTypeIdentifiers.contains(UTType.url.identifier) {
+            } else if provider.registeredTypeIdentifiers.contains(UTType.url.identifier), !provider.registeredTypeIdentifiers.contains(UTType.fileURL.identifier) {
                 let object: NSSecureCoding
                 if provider.canLoadObject(ofClass: NSURL.self) {
                     object = try await withCheckedThrowingContinuation { continuation in
