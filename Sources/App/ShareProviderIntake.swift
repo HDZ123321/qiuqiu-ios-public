@@ -17,7 +17,14 @@ enum ShareProviderIntake {
             if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 let data = try await fileBytes(provider, type: UTType.image.identifier, limit: 64*1024*1024)
                 files.append(try await PhotoNormalizer.normalize(data))
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) || provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) || provider.registeredTypeIdentifiers.contains(where: { UTType($0)?.conforms(to: .data) == true && UTType($0)?.conforms(to: .text) != true && UTType($0)?.conforms(to: .url) != true }) {
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                let object = try await item(provider, type: UTType.fileURL.identifier)
+                guard let url = object as? URL, url.isFileURL else { throw AttachmentFailure(.providerRead) }
+                let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+                let name = try ChatAttachment.localName(url.lastPathComponent, mime: mime)
+                let bytes = try await LocalDocumentReader.read(url)
+                files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) || provider.registeredTypeIdentifiers.contains(where: { UTType($0)?.conforms(to: .data) == true && UTType($0)?.conforms(to: .text) != true && UTType($0)?.conforms(to: .url) != true }) {
                 guard let type = provider.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .data) == true && $0 != UTType.fileURL.identifier }) ?? provider.registeredTypeIdentifiers.first else { throw AttachmentFailure(.unsupportedFormat) }
                 let bytes = try await fileBytes(provider, type: type, limit: AttachmentFailure.limit)
                 let ext = UTType(type)?.preferredFilenameExtension ?? ""
@@ -26,7 +33,12 @@ enum ShareProviderIntake {
                 files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
             } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                 let object = try await item(provider, type: UTType.url.identifier)
-                guard let url = object as? URL, ["http", "https"].contains(url.scheme?.lowercased() ?? ""), URLComponents(url: url, resolvingAgainstBaseURL: false)?.user == nil else { throw ClientError.message("只接收普通 HTTP/HTTPS 网页链接，不读取本地路径。") }
+                let urlValue: URL?
+                if let url = object as? URL { urlValue = url }
+                else if let data = object as? Data, data.count <= ShareInbox.maxText, let string = String(data: data, encoding: .utf8) { urlValue = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                else if let string = object as? String { urlValue = URL(string: string) }
+                else { urlValue = nil }
+                guard let url = urlValue, ["http", "https"].contains(url.scheme?.lowercased() ?? ""), URLComponents(url: url, resolvingAgainstBaseURL: false)?.user == nil else { throw ClientError.message("只接收普通 HTTP/HTTPS 网页链接，不读取本地路径。") }
                 texts.append(url.absoluteString)
             } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 // A file-backed text document should retain its bytes/name.

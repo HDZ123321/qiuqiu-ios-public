@@ -198,6 +198,7 @@ import HermesCore
     func importSharedItem(_ item: ShareInbox.Item, chatID: UUID?, project: WorkspaceProject, expectedScope: String) throws -> UUID {
         guard !busy, !attachmentLoading, attachments.isEmpty else { throw ClientError.message("当前有任务或未处理附件，请先处理；分享仍保留，不会覆盖。") }
         var saved = chats
+        guard ServerSessionImport.scope(settings) == expectedScope else { throw ClientError.message("连接已变化，分享仍保留。") }
         if let existing = saved.first(where: { $0.importedShareIDs?.contains(item.id) == true }) { return existing.id }
         let target: Int
         if let chatID {
@@ -438,7 +439,7 @@ import HermesCore
         attachments.append(attachment)
         DiagnosticLog.shared.record(.attachmentAdded,frames:attachments.count,texts:attachment.data.count)
     }
-    func send(_ text: String, quote: MessageQuote? = nil) {
+    func send(_ text: String, quote: MessageQuote? = nil, consumingShareID: UUID? = nil) {
         guard quote == nil || quote?.conversationID == selected else { error = "引用属于另一对话，请重新选择。"; return }
         guard !busy, let id = selected, let i = chats.firstIndex(where: { $0.id == id }) else { return }
         if let source = chats[i].serverSource {
@@ -460,6 +461,11 @@ import HermesCore
             var user = ChatMessage(role: "user", content: content)
             user.quote = quote
             user.attachmentNames = attachments.isEmpty ? nil : attachments.map(\.name)
+            if let consumingShareID {
+                guard saved[i].shareDraft?.id == consumingShareID,
+                      saved[i].shareDraft?.scope == ServerSessionImport.scope(settings) else { throw ClientError.message("分享草稿或连接已变化，未发送。") }
+                saved[i].shareDraft = nil // same durable transaction as pending admission
+            }
             saved[i].messages.append(user); saved[i].messages.append(reply); saved[i].run = pending
             try saveChats(saved) // Do not send without a durable intent.
             DiagnosticLog.shared.record(.send, id: pending.replyID)

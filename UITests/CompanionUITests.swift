@@ -17,6 +17,8 @@ final class CompanionUITests: XCTestCase {
         let share = safari.buttons.matching(NSPredicate(format: "label == 'Share' OR label == '共享' OR label == '分享'")).firstMatch
         XCTAssertTrue(share.waitForExistence(timeout: 15), safari.debugDescription)
         share.tap()
+        screenshot("share-safari-native-activity-surface")
+        print("NATIVE_SHARE_AX " + safari.debugDescription)
         let save = safari.buttons["保存到球球"]
         if !save.waitForExistence(timeout: 5) {
             let more = safari.buttons.matching(NSPredicate(format: "label == 'More' OR label == '更多'")).firstMatch
@@ -55,8 +57,10 @@ final class CompanionUITests: XCTestCase {
         app.launch(); app.tabBars.buttons["我的"].tap(); app.buttons["分享收件箱"].tap()
         XCTAssertTrue(app.staticTexts["share-capability"].waitForExistence(timeout: 10))
         screenshot("share-inbox-dark-large-runtime-diagnostic")
-        app.buttons["刷新"].tap()
-        XCTAssertTrue(app.staticTexts["share-capability"].exists)
+        let refresh = app.buttons["刷新"]
+        for _ in 0..<5 { if refresh.exists && refresh.isHittable { break }; app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(refresh.exists); refresh.tap()
+        screenshot("share-inbox-dark-large-refresh-visible")
     }
     func testProjectSwitchBindsChatAndFilesWithoutMixing() {
         let app=XCUIApplication()

@@ -1,7 +1,6 @@
 import SwiftUI
 import UIKit
 
-@objc(ShareViewController)
 final class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()

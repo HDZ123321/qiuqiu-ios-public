@@ -127,6 +127,17 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 22
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
+          mkdir -p build/signing
+          cp Resources/QiuQiu.entitlements Resources/QiuQiuShare.entitlements build/signing/
+          cp SHARE_SIGNING.md build/signing/
+          EXT="$APP/PlugIns/QiuQiuShare.appex"
+          test -d "$EXT"
+          xcrun lipo "$EXT/QiuQiuShare" -verify_arch arm64
+          xcrun vtool -show-build "$EXT/QiuQiuShare" | tee -a evidence/binary-info.txt
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$EXT/Info.plist")" = org.hermesclient.qiuqiu.share
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$EXT/Info.plist")" = com.apple.share-services
+          test "$(/usr/libexec/PlistBuddy -c 'Print :QiuShareAppGroup' "$APP/Info.plist")" = "$(/usr/libexec/PlistBuddy -c 'Print :QiuShareAppGroup' "$EXT/Info.plist")"
+          if codesign -d "$EXT" 2>/dev/null; then exit 1; fi
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
           (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build22-unsigned.ipa Payload)
           shasum -a 256 build/QiuQiu-Build22-unsigned.ipa | tee evidence/SHA256SUMS
@@ -151,6 +162,7 @@ jobs:
           name: QiuQiu-Build22-unsigned-ipa
           path: |
             build/QiuQiu-Build22-unsigned.ipa
+            build/signing
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error
