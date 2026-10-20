@@ -122,7 +122,7 @@ async def handle(request):
             content, mid = message.get('content'), message.get('id')
             if message.get('role') == 'user':
                 from restricted_proxy import display_delivery_text
-                content = display_delivery_text(content, request.app.get('workspace'))
+                content = display_delivery_text(content, request.app.get('workspace'),request.app.get('projects'))
             if not isinstance(content,str) or not content or not isinstance(mid,(str,int)) or isinstance(mid,bool): continue
             if message.get('session_id',sid) != sid: raise web.HTTPBadGateway()
             output.append({'id':str(mid),'role':message['role'],'content':content})

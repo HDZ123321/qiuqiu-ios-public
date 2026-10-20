@@ -106,5 +106,5 @@ async def handle(request):
         from restricted_proxy import display_delivery_text
         for item in payload.get('items', []):
             if item.get('role') == 'user':
-                item['content'] = display_delivery_text(item['content'], request.app.get('workspace'))
+                item['content'] = display_delivery_text(item['content'], request.app.get('workspace'),request.app.get('projects'))
     return web.json_response(payload,headers=HEADERS)

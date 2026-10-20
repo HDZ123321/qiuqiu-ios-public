@@ -54,7 +54,13 @@ class Projects:
         if key=='default': return self.default
         if not isinstance(key,str) or not ID.fullmatch(key) or not self.db.execute('SELECT 1 FROM projects WHERE id=?',(key,)).fetchone(): raise web.HTTPNotFound()
         if key not in self.cache: self.cache[key]=Workspace(self.default.root/'.projects'/key)
-        return self.cache[key]
+        workspace=self.cache[key]
+        # Cached directory FDs must still identify the canonical project path.
+        # Otherwise artifact projection by pathname could follow a replaced sibling.
+        if workspace.root.resolve(strict=True)!=workspace.root: raise web.HTTPForbidden()
+        opened=os.fstat(workspace.fd); current=workspace.root.stat()
+        if (opened.st_dev,opened.st_ino)!=(current.st_dev,current.st_ino): raise web.HTTPForbidden()
+        return workspace
     def close(self):
         for workspace in self.cache.values(): workspace.close()
 

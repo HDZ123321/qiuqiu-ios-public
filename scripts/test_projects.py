@@ -6,7 +6,7 @@ from restricted_proxy import Registry
 
 class ProjectTests(unittest.TestCase):
     def setUp(self):
-        self.tmp=tempfile.TemporaryDirectory(); self.root=Path(self.tmp.name); self.root.chmod(0o700)
+        self.tmp=tempfile.TemporaryDirectory(); self.root=Path(self.tmp.name).resolve(); self.root.chmod(0o700)
         self.registry=Registry(':memory:')
     def tearDown(self): self.tmp.cleanup()
     def test_project_creation_preserves_legacy_and_hides_siblings(self):
@@ -36,6 +36,23 @@ class ProjectTests(unittest.TestCase):
             with self.assertRaises(web.HTTPNotFound): projects.workspace(key)
         folder=self.root/'.projects'/a['id']; folder.rmdir(); folder.symlink_to(self.root,target_is_directory=True)
         with self.assertRaises((ValueError,OSError)): projects.workspace(a['id'])
+        projects.close()
+    def test_cached_project_symlink_replacement_is_rejected(self):
+        from project_bridge import Projects
+        projects=Projects(self.root,self.registry.db)
+        a=projects.create('A')['id'];b=projects.create('B')['id']
+        folder=projects.workspace(a).root
+        folder.rmdir();folder.symlink_to(projects.workspace(b).root,target_is_directory=True)
+        with self.assertRaises((ValueError,OSError,web.HTTPException)):projects.workspace(a)
+        projects.close()
+    def test_project_display_context_is_removed_only_from_exact_suffix(self):
+        from project_bridge import Projects
+        from restricted_proxy import delivery_hint, display_delivery_text
+        projects=Projects(self.root,self.registry.db)
+        a=projects.create('A')['id'];workspace=projects.workspace(a)
+        text='original\n'+delivery_hint(workspace.root,'workspace-project-v1')
+        self.assertEqual(display_delivery_text(text,workspace),'original')
+        self.assertEqual(display_delivery_text(text+' changed',workspace),text+' changed')
         projects.close()
     def test_immutable_request_scope_and_run_binding(self):
         from project_bridge import Projects
