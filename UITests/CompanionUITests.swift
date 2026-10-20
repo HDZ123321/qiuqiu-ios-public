@@ -22,9 +22,11 @@ final class CompanionUITests: XCTestCase {
         share.tap()
         screenshot("share-safari-native-activity-surface")
         print("NATIVE_SHARE_AX " + safari.debugDescription)
-        let save = safari.buttons["保存到球球"]
-        if !save.waitForExistence(timeout: 5) {
-            let more = safari.buttons.matching(NSPredicate(format: "label == 'More' OR label == '更多'")).firstMatch
+        // iOS labels the installed extension activity with the containing app's
+        // display name, and exposes it as a cell rather than a button.
+        let save = safari.cells.matching(NSPredicate(format: "label == 'QiuQiu' OR label == '保存到球球'")).firstMatch
+        if !save.waitForExistence(timeout: 10) {
+            let more = safari.cells["More"]
             if more.exists { more.tap() }
         }
         XCTAssertTrue(save.waitForExistence(timeout: 10), safari.debugDescription)

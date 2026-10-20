@@ -11,13 +11,16 @@ enum ShareProviderIntake {
     struct Result { let text: String; let files: [ChatAttachment] }
     static func load(_ providers: [NSItemProvider]) async throws -> Result {
         guard !providers.isEmpty, providers.count <= 4 else { throw ClientError.message("每次最多分享 4 项；未保存任何内容。") }
+        #if DEBUG && targetEnvironment(simulator)
+        print("SHARE_PROVIDER_REGISTERED_TYPES", providers.map(\.registeredTypeIdentifiers))
+        #endif
         var texts: [String] = [], files: [ChatAttachment] = []
         for provider in providers {
             try Task.checkCancellation()
             if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                 let data = try await fileBytes(provider, type: UTType.image.identifier, limit: 64*1024*1024)
                 files.append(try await PhotoNormalizer.normalize(data))
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            } else if provider.registeredTypeIdentifiers.contains(UTType.fileURL.identifier) {
                 let object = try await item(provider, type: UTType.fileURL.identifier)
                 guard let url = object as? URL, url.isFileURL else { throw AttachmentFailure(.providerRead) }
                 let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"

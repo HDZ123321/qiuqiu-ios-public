@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Isolated backend regressions with public native cron source
-        if: ${{ !inputs.typography_only && !inputs.files_only && !inputs.core_only }}
+        if: ${{ !inputs.share_only && !inputs.typography_only && !inputs.files_only && !inputs.core_only }}
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/ci-venv"
