@@ -6,6 +6,7 @@ final class ShareProviderTests: XCTestCase {
     func testOfficialTextAndURLProvidersAreDataNotNetworkRequests() async throws {
         let text = NSItemProvider(object: "Untrusted fixture text" as NSString)
         let url = NSItemProvider(object: URL(string: "https://example.org/fixture")! as NSURL)
+        print("SHARE_PROVIDER_TYPES", text.registeredTypeIdentifiers, url.registeredTypeIdentifiers)
         let result = try await ShareProviderIntake.load([text, url])
         XCTAssertTrue(result.text.contains("Untrusted fixture text"))
         XCTAssertTrue(result.text.contains("https://example.org/fixture"))

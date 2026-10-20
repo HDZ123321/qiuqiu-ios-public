@@ -32,13 +32,26 @@ enum ShareProviderIntake {
                 let name = try ChatAttachment.localName(provider.suggestedName.flatMap { ($0 as NSString).pathExtension.isEmpty ? $0+"."+ext : $0 } ?? "shared-"+UUID().uuidString+"."+ext, mime: mime)
                 files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
             } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-                let object = try await item(provider, type: UTType.url.identifier)
+                let object: NSSecureCoding
+                if provider.canLoadObject(ofClass: NSURL.self) {
+                    object = try await withCheckedThrowingContinuation { continuation in
+                        _ = provider.loadObject(ofClass: NSURL.self) { value, error in
+                            if let value { continuation.resume(returning: value) }
+                            else { continuation.resume(throwing: error ?? AttachmentFailure(.providerRead)) }
+                        }
+                    }
+                } else { object = try await item(provider, type: UTType.url.identifier) }
+                #if DEBUG && targetEnvironment(simulator)
+                print("SHARE_URL_REPRESENTATION", String(describing: type(of: object)), (object as? URL)?.scheme ?? "none")
+                #endif
                 let urlValue: URL?
                 if let url = object as? URL { urlValue = url }
                 else if let data = object as? Data, data.count <= ShareInbox.maxText, let string = String(data: data, encoding: .utf8) { urlValue = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)) }
                 else if let string = object as? String { urlValue = URL(string: string) }
                 else { urlValue = nil }
-                guard let url = urlValue, ["http", "https"].contains(url.scheme?.lowercased() ?? ""), URLComponents(url: url, resolvingAgainstBaseURL: false)?.user == nil else { throw ClientError.message("只接收普通 HTTP/HTTPS 网页链接，不读取本地路径。") }
+                guard let url = urlValue, url.absoluteString.utf8.count <= ShareInbox.maxText,
+                      ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host?.isEmpty == false,
+                      let parts = URLComponents(url: url, resolvingAgainstBaseURL: false), parts.user == nil, parts.password == nil else { throw ClientError.message("只接收普通 HTTP/HTTPS 网页链接，不读取本地路径。") }
                 texts.append(url.absoluteString)
             } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                 // A file-backed text document should retain its bytes/name.
@@ -48,7 +61,10 @@ enum ShareProviderIntake {
                     let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "text/plain"
                     let name = try ChatAttachment.localName(url.lastPathComponent, mime: mime)
                     files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
-                } else if let string = object as? String { texts.append(string) }
+                } else if let string = object as? String {
+                    guard string.utf8.count <= ShareInbox.maxText else { throw ClientError.message("分享文字超过 64 KiB，未截断保存。") }
+                    texts.append(string)
+                }
                 else if let data = object as? Data, data.count <= ShareInbox.maxText, let string = String(data: data, encoding: .utf8) { texts.append(string) }
                 else { throw ClientError.message("无法读取分享文字，未保存任何内容。") }
             } else { throw AttachmentFailure(.unsupportedFormat) }

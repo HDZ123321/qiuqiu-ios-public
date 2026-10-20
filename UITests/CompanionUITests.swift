@@ -16,6 +16,9 @@ final class CompanionUITests: XCTestCase {
         if address.waitForExistence(timeout: 10) { address.tap(); address.typeText("https://example.org\n") }
         let share = safari.buttons.matching(NSPredicate(format: "label == 'Share' OR label == '共享' OR label == '分享'")).firstMatch
         XCTAssertTrue(share.waitForExistence(timeout: 15), safari.debugDescription)
+        let readyToShare = NSPredicate(format: "exists == true AND enabled == true")
+        expectation(for: readyToShare, evaluatedWith: share)
+        waitForExpectations(timeout: 45)
         share.tap()
         screenshot("share-safari-native-activity-surface")
         print("NATIVE_SHARE_AX " + safari.debugDescription)
