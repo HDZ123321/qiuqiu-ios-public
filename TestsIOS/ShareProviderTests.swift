@@ -20,6 +20,9 @@ final class ShareProviderTests: XCTestCase {
         let url = root.appendingPathComponent("shared.txt")
         try Data("bounded document fixture".utf8).write(to: url)
         let provider = NSItemProvider(contentsOf: url)!
+        // A provider need not expose its source filename. Assert preservation
+        // when the official suggestedName contract actually supplies one.
+        provider.suggestedName = "shared.txt"
         let result = try await ShareProviderIntake.load([provider])
         XCTAssertEqual(result.files.count, 1)
         XCTAssertEqual(result.files.first?.data, Data("bounded document fixture".utf8))
