@@ -22,7 +22,12 @@ enum ShareProviderIntake {
                 files.append(try await PhotoNormalizer.normalize(data))
             } else if provider.registeredTypeIdentifiers.contains(UTType.fileURL.identifier) {
                 let object = try await item(provider, type: UTType.fileURL.identifier)
-                guard let url = object as? URL, url.isFileURL else { throw AttachmentFailure(.providerRead) }
+                let candidate: URL?
+                if let url = object as? URL { candidate = url }
+                else if let data = object as? Data, data.count <= 16*1024, let string = String(data: data, encoding: .utf8) { candidate = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                else if let string = object as? String, string.utf8.count <= 16*1024 { candidate = URL(string: string) }
+                else { candidate = nil }
+                guard let url = candidate, url.isFileURL else { throw AttachmentFailure(.providerRead) }
                 let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
                 let name = try ChatAttachment.localName(url.lastPathComponent, mime: mime)
                 let bytes = try await LocalDocumentReader.read(url)
