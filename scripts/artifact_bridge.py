@@ -31,12 +31,12 @@ def references(text, root):
         if len(items) == 16: break
     return items
 
-def read(path,root):
+def read(path,root,root_fd=None):
     # Walk every component with openat/O_NOFOLLOW: no resolve/open TOCTOU escape.
     try:
         parts = Path(path).relative_to(Path(root).resolve(strict=True)).parts
         if not parts or any(p.startswith('.') for p in parts): raise ValueError()
-        fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        fd=os.dup(root_fd) if root_fd is not None else os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
         try:
             for part in parts[:-1]:
                 child=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd)
@@ -71,6 +71,6 @@ async def handle(request):
     if match[2]:
         for path in items:
             if identity(path,root)==match[2]:
-                return web.Response(body=read(path,root),headers=headers,content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
+                return web.Response(body=read(path,root,root_fd=workspace.fd),headers=headers,content_type=mimetypes.guess_type(path.name)[0] or 'application/octet-stream')
         raise web.HTTPNotFound()
     return web.json_response({'items':[{'id':identity(p,root),'name':p.name,'mime':mimetypes.guess_type(p.name)[0] or 'application/octet-stream'} for p in items], 'scope':'explicit MEDIA references inside dedicated workspace only'},headers=headers)

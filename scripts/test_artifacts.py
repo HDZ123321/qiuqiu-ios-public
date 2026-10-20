@@ -16,6 +16,14 @@ class Artifacts(unittest.TestCase):
             items = bridge.references(text,root)
             self.assertEqual([x.name for x in items], ['report.txt'])
             self.assertEqual(bridge.read(items[0],root),b'Generated fixture document')
+    def test_open_directory_anchor_prevents_project_root_race(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            base=Path(d).resolve(); root=base/'project';root.mkdir();(root/'one.txt').write_bytes(b'original')
+            fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY)
+            root.rename(base/'original');root.mkdir();(root/'one.txt').write_bytes(b'sibling')
+            try:self.assertEqual(bridge.read(root/'one.txt',root,root_fd=fd),b'original')
+            finally:os.close(fd)
     def test_root_ancestor_symlink_replacement_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             base=Path(d).resolve(); scope=base/'scope';scope.mkdir(); root=scope/'project';root.mkdir()
