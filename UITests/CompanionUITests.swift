@@ -31,7 +31,7 @@ final class CompanionUITests: XCTestCase {
         app.launch();app.tabBars.buttons["文件"].tap()
         app.buttons["workspace-project-selector"].tap()
         let name=app.textFields["project-name"]
-        let projectList=app.collectionViews.lastMatch
+        let projectList=app.collectionViews.element(boundBy: app.collectionViews.count - 1)
         XCTAssertTrue(app.buttons["project-default"].waitForExistence(timeout:5))
         for _ in 0..<6 { if name.exists && name.isHittable { break }; projectList.swipeUp() }
         XCTAssertTrue(name.waitForExistence(timeout:5)); name.tap();name.typeText("Synthetic created project")
@@ -49,7 +49,7 @@ final class CompanionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["project-pending-block"].waitForExistence(timeout:5))
         screenshot("projects-pending-binding-block-dark-large")
         let projectA=app.buttons["project-p_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
-        for _ in 0..<5 { if projectA.exists { break }; app.collectionViews.lastMatch.swipeUp() }
+        for _ in 0..<5 { if projectA.exists { break }; app.collectionViews.element(boundBy: app.collectionViews.count - 1).swipeUp() }
         XCTAssertTrue(projectA.exists)
         XCTAssertFalse(projectA.isEnabled)
     }

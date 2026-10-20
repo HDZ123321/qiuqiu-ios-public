@@ -37,6 +37,19 @@ class ProjectTests(unittest.TestCase):
         folder=self.root/'.projects'/a['id']; folder.rmdir(); folder.symlink_to(self.root,target_is_directory=True)
         with self.assertRaises((ValueError,OSError)): projects.workspace(a['id'])
         projects.close()
+    def test_legacy_v2_projection_is_byte_identical(self):
+        from restricted_proxy import prepare_delivery
+        from types import SimpleNamespace
+        from pathlib import Path
+        import json, hashlib
+        workspace=SimpleNamespace(root=Path('/synthetic/workspace'))
+        # Frozen from accepted Build20 projection, not reconstructed by the new code.
+        expected=['8b2052eea3b97bf30a45d4002e8cbf14768176f9cdee8cafb12d1efeae2cf8d6','ab4be1011ff3da1e3232a829302357ac18189f85cdf62bd14a3cdadb2cd3089c','fb0cd90cf40cc504e0bcdca77c53d3d777a63435f5f97caf401807d1ffb4902e']
+        for version,digest in zip([None,'workspace-media-v1','workspace-file-v2'],expected):
+            payload={'input':'legacy bytes','model':'synthetic','session_id':'original'}
+            if version:payload['artifact_delivery']=version
+            new=json.dumps(prepare_delivery(payload,workspace),sort_keys=True,separators=(',',':')).encode()
+            self.assertEqual(hashlib.sha256(new).hexdigest(),digest)
     def test_cached_project_symlink_replacement_is_rejected(self):
         from project_bridge import Projects
         projects=Projects(self.root,self.registry.db)
