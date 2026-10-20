@@ -39,6 +39,8 @@ public struct Chat: Codable, Identifiable {
     public var sessionID: String?
     public var serverSource: ServerSessionSource?
     public var workspaceProject: WorkspaceProject?
+    public var shareDraft: ShareDraft?
+    public var importedShareIDs: [UUID]?
     public var customTitle: String?
     public var pinned: Bool?
     public var archived: Bool?
