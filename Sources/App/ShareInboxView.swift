@@ -16,7 +16,7 @@ struct ShareInboxView: View {
                 DisclosureGroup("共享与保留说明") {
                     Text("只验证当前 App 的共享容器读写，不代表分享扩展使用了相同容器；首次真实分享后在这里看到同一项才证明交接。不会导出私有路径。最多 16 项；7 天后禁止导入，需手动删除。无自动发送、联网或剪贴板替代。") .font(.caption)
                 }
-                Button("刷新") { load() }
+                // Refresh stays in navigation chrome at accessibility sizes.
             }
             if let error { Section { Text(error).foregroundStyle(.red) } }
             if items.isEmpty { Text("没有待导入分享。请在其他 App 分享后，手动打开球球查看。") }
@@ -30,6 +30,7 @@ struct ShareInboxView: View {
                 }.buttonStyle(.borderless)
             }
         }.navigationTitle("分享收件箱")
+        .toolbar { Button("刷新") { load() }.accessibilityIdentifier("share-refresh") }
         .onAppear { load() }
         .sheet(item: $preview, onDismiss: { load() }) { item in
             NavigationStack { ShareImportView(item: item, inbox: inbox) }

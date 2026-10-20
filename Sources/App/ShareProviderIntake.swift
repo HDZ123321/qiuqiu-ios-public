@@ -31,12 +31,12 @@ enum ShareProviderIntake {
                 let mime = UTType(type)?.preferredMIMEType ?? "application/octet-stream"
                 let name = try ChatAttachment.localName(provider.suggestedName.flatMap { ($0 as NSString).pathExtension.isEmpty ? $0+"."+ext : $0 } ?? "shared-"+UUID().uuidString+"."+ext, mime: mime)
                 files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+            } else if provider.registeredTypeIdentifiers.contains(UTType.url.identifier) {
                 let object: NSSecureCoding
                 if provider.canLoadObject(ofClass: NSURL.self) {
                     object = try await withCheckedThrowingContinuation { continuation in
                         _ = provider.loadObject(ofClass: NSURL.self) { value, error in
-                            if let value { continuation.resume(returning: value) }
+                            if let value = value as? NSURL { continuation.resume(returning: value as NSSecureCoding) }
                             else { continuation.resume(throwing: error ?? AttachmentFailure(.providerRead)) }
                         }
                     }
