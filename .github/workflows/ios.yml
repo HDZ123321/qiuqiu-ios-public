@@ -2,6 +2,10 @@ name: Public source iOS candidate
 on:
   workflow_dispatch:
     inputs:
+      share_only:
+        description: 'Targeted official share provider and native share surface gate'
+        type: boolean
+        default: false
       projects_only:
         description: 'Targeted app-managed project binding UI gate'
         type: boolean
@@ -104,6 +108,11 @@ jobs:
           elif [ "${{ inputs.settings_only }}" != true ]; then
             EXTRA="$EXTRA -only-testing:QiuQiuUITests/CompanionUITests/testProjectSwitchBindsChatAndFilesWithoutMixing -only-testing:QiuQiuUITests/CompanionUITests/testProjectCreationAndPendingBlockDarkLargeText"
           fi
+          if [ "${{ inputs.share_only }}" = true ]; then
+            EXTRA="-only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testNativeSystemShareExtensionPreviewManualSaveAndHostDraft -only-testing:QiuQiuUITests/CompanionUITests/testShareCapabilityAndInboxCancelDarkLargeText"
+          else
+            EXTRA="$EXTRA -only-testing:QiuQiuUITests/CompanionUITests/testNativeSystemShareExtensionPreviewManualSaveAndHostDraft -only-testing:QiuQiuUITests/CompanionUITests/testShareCapabilityAndInboxCancelDarkLargeText"
+          fi
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
         if: ${{ !inputs.core_only }}
@@ -116,11 +125,11 @@ jobs:
           xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 21
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 22
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
-          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build21-unsigned.ipa Payload)
-          shasum -a 256 build/QiuQiu-Build21-unsigned.ipa | tee evidence/SHA256SUMS
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build22-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build22-unsigned.ipa | tee evidence/SHA256SUMS
       - name: Export screenshots and metadata on every outcome
         if: always()
         run: |
@@ -139,9 +148,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !inputs.core_only }}
         with:
-          name: QiuQiu-Build21-unsigned-ipa
+          name: QiuQiu-Build22-unsigned-ipa
           path: |
-            build/QiuQiu-Build21-unsigned.ipa
+            build/QiuQiu-Build22-unsigned.ipa
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error

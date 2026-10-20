@@ -195,6 +195,30 @@ import HermesCore
         selected = source.chatID
         return source.messageID
     }
+    func importSharedItem(_ item: ShareInbox.Item, chatID: UUID?, project: WorkspaceProject, expectedScope: String) throws -> UUID {
+        guard !busy, !attachmentLoading, attachments.isEmpty else { throw ClientError.message("当前有任务或未处理附件，请先处理；分享仍保留，不会覆盖。") }
+        var saved = chats
+        if let existing = saved.first(where: { $0.importedShareIDs?.contains(item.id) == true }) { return existing.id }
+        let target: Int
+        if let chatID {
+            guard let i = saved.firstIndex(where: { $0.id == chatID }) else { throw ClientError.message("目标对话已变化。") }; target = i
+        } else { saved.append(Chat()); target = saved.count-1 }
+        try saved[target].bindWorkspace(project)
+        try saved[target].importShare(item, scope: ServerSessionImport.scope(settings), expectedScope: expectedScope)
+        try saveChats(saved) // commit before inbox acknowledgement; retry is idempotent
+        chats = saved
+        return saved[target].id
+    }
+    func updateShareDraft(_ text: String, chatID: UUID) {
+        guard let i = chats.firstIndex(where: { $0.id == chatID }), chats[i].shareDraft != nil else { return }
+        var saved = chats; saved[i].shareDraft?.text = text
+        do { try saveChats(saved); chats = saved } catch { self.error = "分享草稿修改保存失败，请保留当前文字。" }
+    }
+    func clearShareDraft(_ chatID: UUID) throws {
+        guard let i = chats.firstIndex(where: { $0.id == chatID }) else { return }
+        var saved = chats; saved[i].shareDraft = nil
+        try saveChats(saved); chats = saved
+    }
     func newChat() {
         guard !busy else { return }
         let chat = Chat(); chats.insert(chat, at: 0); selected = chat.id; toolProgress = ""; persist()

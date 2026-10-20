@@ -1,6 +1,63 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testNativeSystemShareExtensionPreviewManualSaveAndHostDraft() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-history"]
+        app.launch()
+        app.tabBars.buttons["我的"].tap()
+        app.buttons["分享收件箱"].tap()
+        XCTAssertTrue(app.staticTexts["share-capability"].waitForExistence(timeout: 5))
+        screenshot("share-host-capability-real-container")
+        // System Safari host, not an injected extension view controller.
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        safari.launch()
+        let address = safari.textFields.matching(NSPredicate(format: "identifier CONTAINS[c] 'URL' OR label CONTAINS[c] 'Address' OR label CONTAINS[c] 'Search'")).firstMatch
+        if address.waitForExistence(timeout: 10) { address.tap(); address.typeText("https://example.org\n") }
+        let share = safari.buttons.matching(NSPredicate(format: "label == 'Share' OR label == '共享' OR label == '分享'")).firstMatch
+        XCTAssertTrue(share.waitForExistence(timeout: 15), safari.debugDescription)
+        share.tap()
+        let save = safari.buttons["保存到球球"]
+        if !save.waitForExistence(timeout: 5) {
+            let more = safari.buttons.matching(NSPredicate(format: "label == 'More' OR label == '更多'")).firstMatch
+            if more.exists { more.tap() }
+        }
+        XCTAssertTrue(save.waitForExistence(timeout: 10), safari.debugDescription)
+        save.tap()
+        let preview = safari.staticTexts["分享预览"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 10), safari.debugDescription)
+        screenshot("share-safari-real-extension-preview")
+        let unavailable = safari.staticTexts.matching(NSPredicate(format: "label CONTAINS '当前签名未启用共享容器'")).firstMatch
+        if unavailable.exists {
+            XCTAssertFalse(safari.buttons["share-save"].isEnabled)
+            screenshot("share-simulator-container-unavailable-honest")
+            safari.buttons["取消"].tap()
+        } else {
+            safari.buttons["share-save"].tap()
+            XCTAssertTrue(safari.staticTexts["share-saved"].waitForExistence(timeout: 10))
+            screenshot("share-real-extension-atomic-saved")
+            safari.buttons["完成"].tap()
+            app.activate() // explicit manual open, never extension openURL
+            app.buttons["刷新"].tap()
+            let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'share-item-'")).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            row.tap()
+            XCTAssertTrue(app.buttons["share-import-draft"].waitForExistence(timeout: 5))
+            screenshot("share-host-target-preview")
+            app.buttons["share-import-draft"].tap()
+            XCTAssertTrue(app.staticTexts["share-imported"].waitForExistence(timeout: 5))
+            screenshot("share-host-import-durable-draft-no-send")
+        }
+    }
+    func testShareCapabilityAndInboxCancelDarkLargeText() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-history", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch(); app.tabBars.buttons["我的"].tap(); app.buttons["分享收件箱"].tap()
+        XCTAssertTrue(app.staticTexts["share-capability"].waitForExistence(timeout: 10))
+        screenshot("share-inbox-dark-large-runtime-diagnostic")
+        app.buttons["刷新"].tap()
+        XCTAssertTrue(app.staticTexts["share-capability"].exists)
+    }
     func testProjectSwitchBindsChatAndFilesWithoutMixing() {
         let app=XCUIApplication()
         app.launchArguments=["--ui-replies", "--ui-projects"]

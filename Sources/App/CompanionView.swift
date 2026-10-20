@@ -20,7 +20,10 @@ struct CompanionView: View {
             NavigationStack {
                 List {
                     Section { Label("球球", systemImage: "sparkles").font(.title2.bold()); Text("自己的助理，随时接着聊").foregroundStyle(.secondary) }
-                    Section("连接与诊断") { NavigationLink("连接设置 · 诊断日志") { SettingsView(store: store) } }
+                    Section("连接与诊断") {
+                        NavigationLink("连接设置 · 诊断日志") { SettingsView(store: store) }
+                        NavigationLink("分享收件箱") { ShareInboxView() }
+                    }
                     Section("外观") { Picker("主题", selection: $skin) { Text("液态玻璃").tag("glass"); Text("温暖灵动").tag("warm"); Text("安静耐看").tag("quiet") } }
                     Section("关于") {
                         Text("球球 iOS · Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "未知")")
@@ -372,6 +375,7 @@ struct RunHistoryView: View {
             if let error = store.error { HStack { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled); Button("关闭") { store.error = nil } }.padding(10) }
             if let quote { quotePreview(quote, removable: true).padding(.horizontal) }
             inlineVoiceStatus
+            if let chatID = store.current?.id { SharedDraftView(chatID: chatID) }
             ChatAttachmentPicker()
             HStack(alignment: .bottom) {
                 Button {
