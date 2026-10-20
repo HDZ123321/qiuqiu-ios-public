@@ -33,7 +33,7 @@ enum ShareProviderIntake {
                 let name = try ChatAttachment.localName(url.lastPathComponent, mime: mime)
                 let bytes = try await LocalDocumentReader.read(url)
                 files.append(try ChatAttachment(name: name, mime: mime, data: bytes))
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) || provider.registeredTypeIdentifiers.contains(where: { UTType($0)?.conforms(to: .data) == true && UTType($0)?.conforms(to: .text) != true && UTType($0)?.conforms(to: .url) != true }) {
+            } else if provider.registeredTypeIdentifiers.contains(UTType.fileURL.identifier) || provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) || provider.registeredTypeIdentifiers.contains(where: { UTType($0)?.conforms(to: .data) == true && UTType($0)?.conforms(to: .text) != true && UTType($0)?.conforms(to: .url) != true }) {
                 guard let type = provider.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .data) == true && $0 != UTType.fileURL.identifier }) ?? provider.registeredTypeIdentifiers.first else { throw AttachmentFailure(.unsupportedFormat) }
                 let bytes = try await fileBytes(provider, type: type, limit: AttachmentFailure.limit)
                 let ext = UTType(type)?.preferredFilenameExtension ?? ""

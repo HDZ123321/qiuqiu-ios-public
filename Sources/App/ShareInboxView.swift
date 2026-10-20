@@ -129,12 +129,14 @@ struct SharedDraftView: View {
     private var draft: ShareDraft? { store.chats.first(where: { $0.id == chatID })?.shareDraft }
     var body: some View {
         if let draft {
-            DisclosureGroup("外部分享草稿 · 尚未发送") {
+            DisclosureGroup {
                 TextField("检查并编辑分享内容", text: Binding(get: { self.draft?.text ?? "" }, set: { store.updateShareDraft($0, chatID: chatID) }), axis: .vertical).lineLimit(2...6).accessibilityIdentifier("share-draft-text")
                 ForEach(Array(draft.files.enumerated()), id: \.offset) { _, file in Text(file.name).font(.caption).fixedSize(horizontal: false, vertical: true) }
                 Text("与下方原输入草稿分开保留。发送会使用当前对话所选项目；不会自动联网发送。") .font(.caption)
                 Button("发送此分享草稿") { send(draft) }.disabled(!store.canSend || store.attachmentLoading || !store.attachments.isEmpty).accessibilityIdentifier("share-draft-send")
                 Button("删除分享草稿…", role: .destructive) { deletion = true }
+            } label: {
+                Text("外部分享草稿 · 尚未发送").fixedSize(horizontal: false, vertical: true)
             }.padding(.horizontal)
             .confirmationDialog("删除此分享草稿？", isPresented: $deletion) {
                 Button("确认删除草稿", role: .destructive) { do { try store.clearShareDraft(chatID) } catch { store.error = "删除草稿保存失败。" } }
