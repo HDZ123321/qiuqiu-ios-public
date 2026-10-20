@@ -17,8 +17,11 @@ struct ProjectSelector: View {
         List {
             Section {
                 Text("当前对话：\(chat?.title ?? "已不可用")").font(.headline)
-                Text("这是 App 管理的文件工作区，只影响此对话下一次请求的附件与生成文件。不是服务器全局目录、系统挂载或终端执行隔离；不会移动旧文件、修改原渠道历史或更换原会话编号。").font(.caption).foregroundStyle(.secondary)
-                if blocked { Text("此对话的任务仍在进行，结束后才能切换；原任务工作区保持不变。").foregroundStyle(.orange).accessibilityIdentifier("project-pending-block") }
+                if blocked { Text("此对话的任务尚未结束，结束后才能切换；原任务工作区保持不变。").foregroundStyle(.orange).accessibilityIdentifier("project-pending-block") }
+                Text("用于此对话后续请求的附件与生成文件；旧文件留在原项目。").font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup("工作区范围说明") {
+                    Text("App 管理的文件目录，不是服务器全局目录、系统挂载或终端执行隔离；不会修改原渠道历史或更换原会话编号。").font(.caption).foregroundStyle(.secondary)
+                }
             }
             if let error { Section { Text(error).foregroundStyle(.red); Button("刷新项目") { Task { await load() } } } }
             Section("选择项目 · 绑定此对话") {

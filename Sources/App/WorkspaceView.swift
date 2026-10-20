@@ -52,7 +52,7 @@ private struct WorkspaceBrowser: View {
                                 Image(systemName:item.directory ? "folder" : item.name.lowercased().hasSuffix(".md") ? "doc.richtext" : ["png","jpg","jpeg","gif","webp","heic"].contains((item.name as NSString).pathExtension.lowercased()) ? "photo" : "doc.text")
                                     .foregroundStyle(.tint).frame(width:40,height:40).background(Color.accentColor.opacity(0.10),in:RoundedRectangle(cornerRadius:10))
                                 VStack(alignment:.leading,spacing:4) {
-                                    Text(item.name).lineLimit(2)
+                                    Text(item.name).fixedSize(horizontal:false,vertical:true).foregroundStyle(.primary)
                                     if !item.directory { Text(ByteCountFormatter.string(fromByteCount:Int64(item.size),countStyle:.file)).font(.caption).foregroundStyle(.secondary) }
                                 }
                                 Spacer(); Image(systemName:"chevron.right").font(.caption)
