@@ -156,9 +156,12 @@ async def handle(request):
     if request.app.get('workspace_key'): keys.append(request.app['workspace_key'])
     if not any(hmac.compare_digest(auth,'Bearer '+key) for key in keys):
         raise web.HTTPUnauthorized(headers={'WWW-Authenticate':'Bearer'})
-    if set(request.query)-{'path'} or len(request.query.getall('path',[]))>1: raise web.HTTPBadRequest()
+    if set(request.query)-{'path','project'} or len(request.query.getall('path',[]))>1 or len(request.query.getall('project',[]))>1: raise web.HTTPBadRequest()
     workspace=request.app['workspace']; path=request.query.get('path','')
     try:
+        if 'project' in request.query:
+            if request.app.get('projects') is None: raise web.HTTPNotFound()
+            workspace=request.app['projects'].workspace(request.query['project'])
         async with workspace.lock:
             if request.path=='/v1/workspace':
                 if request.method!='GET': raise web.HTTPMethodNotAllowed(request.method,['GET'])

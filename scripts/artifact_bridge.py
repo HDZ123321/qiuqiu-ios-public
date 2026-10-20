@@ -60,7 +60,8 @@ async def handle(request):
     if not match or request.method!='GET' or request.query_string: raise web.HTTPNotFound()
     if not hmac.compare_digest(request.headers.get('Authorization',''),'Bearer '+request.app['app_key']): raise web.HTTPUnauthorized()
     if not request.app['registry'].owns(match[1]): raise web.HTTPNotFound()
-    root=request.app['workspace'].root.resolve(strict=True)
+    workspace=request.app['projects'].for_run(match[1]) if request.app.get('projects') is not None else request.app['workspace']
+    root=workspace.root.resolve(strict=True)
     base=request.app.get('session_native_base','http://127.0.0.1:8642')
     async with request.app['client'].get(base+'/v1/runs/'+match[1],headers={'Authorization':'Bearer '+request.app['native_key']},allow_redirects=False) as response:
         if response.status!=200: raise web.HTTPBadGateway()

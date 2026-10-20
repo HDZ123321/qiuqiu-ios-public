@@ -141,7 +141,7 @@ def prepare_delivery(payload, workspace):
     version = payload.get('artifact_delivery')
     if version is None:
         return payload
-    if version not in ('workspace-media-v1', 'workspace-file-v2'):
+    if version not in ('workspace-media-v1', 'workspace-file-v2', 'workspace-project-v1'):
         raise web.HTTPBadRequest(text='Unsupported artifact delivery protocol')
     hint = delivery_hint(workspace.root, version)
     result = {k: v for k, v in payload.items() if k != 'artifact_delivery'}
@@ -156,6 +156,9 @@ def prepare_delivery(payload, workspace):
     return result
 
 def delivery_hint(root, version='workspace-media-v1'):
+    if version == 'workspace-project-v1':
+        return (delivery_hint(root, 'workspace-file-v2') + ' App-managed project document scope: use only this directory for this request attachments and generated files. '
+                'This is per-request context, not a process cwd change, OS mount or execution sandbox. Earlier conversation paths do not select this request workspace.')
     if version == 'workspace-file-v2':
         return ('QiuQiu file delivery context (workspace-file-v2): This client has a separate scoped downloadable-file bridge. '
                 'It does not rely on native API MEDIA interception. When asked to generate or send a file, actually write '
@@ -186,6 +189,9 @@ def display_delivery_text(text, workspace):
     return text
 
 async def handle(request):
+    if request.path == '/v1/app/projects':
+        from project_bridge import handle as project_handle
+        return await project_handle(request)
     if request.path.startswith('/v1/app/artifacts/'):
         from artifact_bridge import handle as artifact_handle
         return await artifact_handle(request)
@@ -243,7 +249,7 @@ async def handle(request):
                 payload = json.loads(body)
             except (ValueError, TypeError):
                 raise web.HTTPBadRequest()
-            if not isinstance(payload, dict) or set(payload) - {'input','model','session_id','conversation_history','attachments','artifact_delivery'}:
+            if not isinstance(payload, dict) or set(payload) - {'input','model','session_id','conversation_history','attachments','artifact_delivery','project_id'}:
                 raise web.HTTPBadRequest()
             if not isinstance(payload.get('input'), str) or not payload['input'].strip():
                 raise web.HTTPBadRequest()
@@ -263,12 +269,23 @@ async def handle(request):
                 # The canonical native DB, not a client transcript, owns context.
                 payload.pop('conversation_history', None)
                 body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+            workspace = request.app['workspace']
+            projects = request.app.get('projects')
+            if 'project_id' in payload:
+                if projects is None or payload.get('artifact_delivery') != 'workspace-project-v1': raise web.HTTPBadRequest()
+                workspace = projects.workspace(payload['project_id'])
+            elif payload.get('artifact_delivery') == 'workspace-project-v1': raise web.HTTPBadRequest()
+            if projects is not None:
+                projects.reserve(key, payload.get('project_id', 'default'), body)
+            if 'project_id' in payload:
+                payload = {k:v for k,v in payload.items() if k != 'project_id'}
+                body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
             if payload.get('attachments'):
-                async with request.app['workspace'].lock:
-                    payload = await asyncio.to_thread(prepare_attachments, payload, request.app['workspace'])
+                async with workspace.lock:
+                    payload = await asyncio.to_thread(prepare_attachments, payload, workspace)
                 body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
             if 'artifact_delivery' in payload:
-                payload = prepare_delivery(payload, request.app['workspace'])
+                payload = prepare_delivery(payload, workspace)
                 body = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
             headers['Idempotency-Key'] = key
         if match and match[2] == 'approval':
@@ -296,6 +313,7 @@ async def handle(request):
                         raise web.HTTPBadGateway()
                     snapshot = await status.json()
                 registry.remember(run, snapshot.get('session_id'))
+                if request.app.get('projects') is not None: request.app['projects'].remember(run,key)
                 return web.Response(status=202, body=data, headers=out_headers)
             if match and match[2] is None and request.method == 'GET' and upstream.status == 200:
                 data = await upstream.read()
@@ -327,6 +345,8 @@ def main():
         app['workspace_key'] = (PRIVATE/'workspace-ci-key').read_text().strip()
     app['native_key'] = (PRIVATE/'native-key').read_text().strip()
     app['registry'] = Registry(PRIVATE/'app-runs.sqlite')
+    from project_bridge import Projects
+    app['projects'] = Projects(app['workspace'].root,app['registry'].db)
     app['active'] = 0
     # Deployment opt-in only: no new route enabled by merely updating source.
     app['sessions_enabled'] = os.environ.get('QIUQIU_ENABLE_SESSIONS') == '1'
