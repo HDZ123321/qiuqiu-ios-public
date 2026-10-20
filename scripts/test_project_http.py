@@ -37,6 +37,8 @@ class ProjectHTTP(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual((await client.post('/v1/runs',json=payload,headers=rh)).status,202)
                     self.assertNotIn('project_id',observed[0]); self.assertIn(str(ar),str(observed[0]['input']))
                     self.assertNotIn('cwd',observed[0])
+                    self.assertEqual((await client.post('/v1/runs',json=payload,headers=rh)).status,202)
+                    self.assertEqual(observed[0],observed[1])
                     payload['project_id']=b
                     self.assertEqual((await client.post('/v1/runs',json=payload,headers=rh)).status,409)
                     response=await client.get('/v1/app/artifacts/run_fixture',headers=h)

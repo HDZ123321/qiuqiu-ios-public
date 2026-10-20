@@ -1,6 +1,49 @@
 import XCTest
 
 final class CompanionUITests: XCTestCase {
+    func testProjectSwitchBindsChatAndFilesWithoutMixing() {
+        let app=XCUIApplication()
+        app.launchArguments=["--ui-replies", "--ui-projects"]
+        app.launch()
+        app.tabBars.buttons["文件"].tap()
+        XCTAssertTrue(app.buttons["workspace-project-selector"].waitForExistence(timeout:10))
+        app.buttons["workspace-project-selector"].tap()
+        XCTAssertTrue(app.buttons["project-default"].waitForExistence(timeout:5))
+        app.buttons["project-p_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"].tap()
+        XCTAssertTrue(app.staticTexts["project-a-only.txt"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.staticTexts["project-b-only.txt"].exists)
+        screenshot("projects-a-files-scoped")
+        app.buttons["workspace-project-selector"].tap()
+        app.buttons["project-p_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"].tap()
+        XCTAssertTrue(app.staticTexts["project-b-only.txt"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.staticTexts["project-a-only.txt"].exists)
+        app.tabBars.buttons["助理"].tap();app.buttons["跟我说"].tap()
+        XCTAssertTrue(app.buttons["chat-project-selector"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.buttons["chat-project-selector"].label.contains("研究 B"))
+        screenshot("projects-chat-binding-b")
+        app.buttons["chat-project-selector"].tap()
+        app.buttons["project-default"].tap()
+        XCTAssertTrue(app.buttons["chat-project-selector"].label.contains("默认工作区"))
+    }
+    func testProjectCreationAndPendingBlockDarkLargeText() {
+        let app=XCUIApplication()
+        app.launchArguments=["--ui-replies", "--ui-projects", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch();app.tabBars.buttons["文件"].tap()
+        app.buttons["workspace-project-selector"].tap()
+        let name=app.textFields["project-name"]
+        XCTAssertTrue(name.waitForExistence(timeout:5)); name.tap();name.typeText("Synthetic created project")
+        app.buttons["project-create"].tap()
+        XCTAssertTrue(app.staticTexts["project-created-only.txt"].waitForExistence(timeout:5))
+        screenshot("projects-created-dark-large-files")
+        app.terminate()
+        app.launchArguments=["--ui-replies", "--ui-projects", "--ui-approval", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch();app.tabBars.buttons["文件"].tap()
+        app.buttons["workspace-project-selector"].tap()
+        XCTAssertTrue(app.staticTexts["project-pending-block"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.buttons["project-p_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"].isEnabled)
+        screenshot("projects-pending-binding-block-dark-large")
+    }
+
     func testPendingRunConnectionFieldsAcceptIndependentEdits() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-replies", "--ui-approval"]

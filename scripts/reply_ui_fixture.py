@@ -13,6 +13,7 @@ IMAGE='a'*64
 FILE='b'*64
 DOC='c'*64
 status='waiting_for_approval'
+PROJECTS=[{'id':'default','name':'默认工作区'},{'id':'p_'+'a'*32,'name':'研究 A'},{'id':'p_'+'b'*32,'name':'研究 B'}]
 quote_output='NO QUOTE REQUEST RECEIVED'
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
@@ -22,6 +23,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path=='/ready': return self.reply(200,{})
         if self.headers.get('Authorization')!='Bearer synthetic-fixture-only': return self.reply(401,{})
+        if self.path=='/v1/app/projects': return self.reply(200,{'items':PROJECTS})
+        if self.path.startswith('/v1/workspace?'):
+            from urllib.parse import urlsplit, parse_qs
+            project=parse_qs(urlsplit(self.path).query).get('project',['default'])[0]
+            label={'p_'+'a'*32:'project-a-only.txt','p_'+'b'*32:'project-b-only.txt','p_'+'c'*32:'project-created-only.txt'}.get(project,'legacy-only.txt')
+            return self.reply(200,{'scope':'/synthetic/app-workspace/'+project,'path':'','max_bytes':4194304,'entries':[{'name':label,'path':label,'directory':False,'size':12,'modified':0}]})
         if self.path=='/v1/capabilities': return self.reply(200,{'features':{'run_submission':True,'run_status':True,'run_stop':True,'run_approval_response':True,'runs_idempotency':{'supported':True,'durable':True,'retention_seconds':86400}}})
         if self.path=='/v1/app/artifacts/run_empty': return self.reply(200,{'items':[]})
         if self.path=='/v1/app/artifacts/run_error': return self.reply(403,{})
@@ -40,6 +47,10 @@ class Handler(BaseHTTPRequestHandler):
         global status, quote_output
         data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}')
         if self.headers.get('Authorization')!='Bearer synthetic-fixture-only': return self.reply(401,{})
+        if self.path=='/v1/app/projects' and isinstance(data.get('name'),str):
+            item={'id':'p_'+'c'*32,'name':data['name']}
+            if item not in PROJECTS: PROJECTS.append(item)
+            return self.reply(201,item)
         if self.path=='/v1/runs' and isinstance(data.get('input'),str):
             quoted=data['input']
             valid='引用消息（' in quoted and 'Generated reply' in quoted and 'manual synthetic reply' in quoted and 'MEDIA:' not in quoted and 'QIUQIU_FILE:' not in quoted

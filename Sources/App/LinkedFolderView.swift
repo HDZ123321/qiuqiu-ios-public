@@ -3,7 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LinkedFolderView: View {
-    @EnvironmentObject private var store: ChatStore
+    let settings: ConnectionSettings
+    let projectID: String
     @AppStorage("qiu.linkedFolder") private var bookmark = Data()
     @State private var picking = false
     @State private var entries: [URL] = []
@@ -66,8 +67,8 @@ struct LinkedFolderView: View {
                 defer { if access { folder.stopAccessingSecurityScopedResource() } }
                 guard url.deletingLastPathComponent()==folder else { throw ClientError.message("文件不在授权文件夹内。") }
                 let data=try await LocalDocumentReader.read(url)
-                try await api.workspaceWrite(store.settings,path:url.lastPathComponent,data:data,etag:nil)
-                let check=try await api.workspaceRead(store.settings,path:url.lastPathComponent)
+                try await api.workspaceWrite(settings,path:url.lastPathComponent,data:data,etag:nil,projectID:projectID)
+                let check=try await api.workspaceRead(settings,path:url.lastPathComponent,projectID:projectID)
                 guard check.data==data else { throw ClientError.message("服务器回读不一致。") }
                 result="上传并回读核实：\(url.lastPathComponent)"
             } catch let failure as HTTPFailure where failure.status==409 {

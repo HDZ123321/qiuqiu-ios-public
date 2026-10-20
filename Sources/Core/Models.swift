@@ -38,6 +38,7 @@ public struct Chat: Codable, Identifiable {
     public var run: PendingRun?
     public var sessionID: String?
     public var serverSource: ServerSessionSource?
+    public var workspaceProject: WorkspaceProject?
     public var customTitle: String?
     public var pinned: Bool?
     public var archived: Bool?

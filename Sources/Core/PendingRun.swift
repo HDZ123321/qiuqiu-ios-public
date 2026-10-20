@@ -37,11 +37,16 @@ public struct PendingRun: Codable, Equatable {
         default: return "服务器状态：\(status)"
         }
     }
-    public init(input: String, model: String, sessionID: String?, history: [ChatMessage], replyID: UUID, attachments: [ChatAttachment] = []) throws {
+    public init(input: String, model: String, sessionID: String?, history: [ChatMessage], replyID: UUID, attachments: [ChatAttachment] = [], project: WorkspaceProject? = nil) throws {
         key = UUID().uuidString; self.replyID = replyID; self.sessionID = sessionID
         createdAt = Date(); status = "creating"
         try AttachmentFailure.validateMessage(count: attachments.count, bytes: attachments.reduce(0, { $0 + $1.data.count }))
         var payload: [String: Any] = ["input": input, "model": model, "artifact_delivery": "workspace-file-v2"]
+        if let project, project.id != "default" {
+            try project.validate()
+            payload["project_id"] = project.id
+            payload["artifact_delivery"] = "workspace-project-v1"
+        }
         if !attachments.isEmpty { payload["attachments"] = attachments.map(\.payload) }
         if let sessionID { payload["session_id"] = sessionID }
         else if !history.isEmpty {

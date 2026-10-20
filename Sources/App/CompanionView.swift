@@ -312,8 +312,15 @@ struct RunHistoryView: View {
     }
     @State private var fileContext: FileContext?
     @State private var fileJump: UUID?
+    @State private var projectContext: ProjectSelectionContext?
     var body: some View {
         VStack(spacing: 0) {
+            Button {
+                if let id=store.current?.id { projectContext=ProjectSelectionContext(id:id,settings:store.settings) }
+            } label: {
+                Label("项目：\(store.current?.workspaceProjectName ?? "默认工作区")",systemImage:"folder")
+                    .font(.caption).lineLimit(2).frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal).padding(.vertical,6)
+            }.accessibilityIdentifier("chat-project-selector")
             ReadingMessageScroll(revision: "\(store.current?.messages.count ?? 0)-\(store.current?.messages.last?.content ?? "")", conversationID: store.current?.id, jumpTarget: fileJump) {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         if store.current?.messages.isEmpty != false { Text("跟球球说说，今天想做什么？").font(.title3).foregroundStyle(.secondary).padding(.vertical, 40) }
@@ -380,6 +387,7 @@ struct RunHistoryView: View {
                 Button { let previous = store.current?.run?.key; store.send(draft, quote: quote); if store.current?.run?.key != previous { draft = ""; quote = nil; voiceChatID = nil } } label: { Image(systemName: "arrow.up.circle.fill").font(.title).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel("发送").disabled(voiceActive || !store.canSend || store.attachmentLoading || store.current?.archived == true || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && store.attachments.isEmpty))
             }.padding()
         }.navigationTitle(store.current?.title ?? "球球").navigationBarTitleDisplayMode(.inline)
+        .sheet(item:$projectContext) { context in NavigationStack { ProjectSelector(chatID:context.id,settings:context.settings) } }
         .sheet(item: $fileContext) { context in
             NavigationStack {
                 ConversationFilesView(chatID: context.id, settings: context.settings) { source in

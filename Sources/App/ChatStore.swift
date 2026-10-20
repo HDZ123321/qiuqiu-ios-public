@@ -23,6 +23,13 @@ import HermesCore
     private let saveChats: ([Chat]) throws -> Void
     private let sleep: (UInt64) async throws -> Void
     var current: Chat? { chats.first { $0.id == selected } }
+    func bindWorkspace(_ project: WorkspaceProject, chatID: UUID) throws {
+        guard let i=chats.firstIndex(where: { $0.id == chatID }) else { throw ClientError.message("对话已变化。") }
+        var saved=chats
+        try saved[i].bindWorkspace(project)
+        try saveChats(saved)
+        chats=saved
+    }
     var activeChat: Chat? { chats.first { $0.run?.terminal == false } }
     var activeRun: PendingRun? { activeChat?.run ?? current?.run }
     private var failureStreak = 0
@@ -424,7 +431,7 @@ import HermesCore
                 throw ClientError.message("此服务器会话属于另一连接，请恢复原连接后继续。")
             }
             let reply = ChatMessage(role: "assistant", content: "")
-            let pending = try PendingRun(input: quote?.userContent(content) ?? content, model: settings.model, sessionID: chats[i].sessionID, history: chats[i].messages, replyID: reply.id, attachments: attachments)
+            let pending = try PendingRun(input: quote?.userContent(content) ?? content, model: settings.model, sessionID: chats[i].sessionID, history: chats[i].messages, replyID: reply.id, attachments: attachments, project: chats[i].workspaceProject)
             var saved = chats
             var user = ChatMessage(role: "user", content: content)
             user.quote = quote

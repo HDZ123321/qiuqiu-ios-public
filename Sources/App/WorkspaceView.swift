@@ -6,6 +6,20 @@ import UniformTypeIdentifiers
 
 struct WorkspaceView: View {
     @EnvironmentObject private var store: ChatStore
+    @State private var projectContext: ProjectSelectionContext?
+    var body: some View {
+        WorkspaceBrowser(settings:store.settings,project:store.current?.workspaceProject ?? .defaultProject,chatTitle:store.current?.title ?? "新对话",choose:{
+            if let id=store.current?.id { projectContext=ProjectSelectionContext(id:id,settings:store.settings) }
+        })
+        .id("\(store.current?.id.uuidString ?? "none")-\(store.current?.workspaceProjectID ?? "default")-\(ServerSessionImport.scope(store.settings))")
+        .sheet(item:$projectContext) { context in NavigationStack { ProjectSelector(chatID:context.id,settings:context.settings) } }
+    }
+}
+private struct WorkspaceBrowser: View {
+    let settings: ConnectionSettings
+    let project: WorkspaceProject
+    let chatTitle: String
+    let choose: () -> Void
     @State private var path = ""
     @State private var listing: WorkspaceListing?
     @State private var error: String?
@@ -16,11 +30,13 @@ struct WorkspaceView: View {
     var body: some View {
         List {
             Section {
-                Text("专用文件工作区").font(.headline)
+                Button(action:choose) { Label("项目：\(project.name)",systemImage:"folder.badge.gearshape") }.accessibilityIdentifier("workspace-project-selector")
+                Text("当前对话：\(chatTitle)").font(.caption)
+                Text("App 专用文件工作区 · 不是终端 cwd").font(.headline)
                 Text(listing?.scope ?? "专用工作区").font(.caption).textSelection(.enabled)
                 Text("仅此目录内的非隐藏文档；不开放服务器主目录、配置或密钥。单文件 4 MB；不支持删除。上传同名文件会拒绝，不覆盖。") .font(.caption).foregroundStyle(.secondary)
             }
-            Section { NavigationLink("关联 iPhone 文件夹 · 手动上传") { LinkedFolderView() } }
+            Section { NavigationLink("关联 iPhone 文件夹 · 手动上传") { LinkedFolderView(settings:settings,projectID:project.id) } }
             if !path.isEmpty { Button("返回上层") { path = path.split(separator:"/").dropLast().joined(separator:"/"); Task { await reload() } } }
             if let error { Section { Text(error).foregroundStyle(.red); Button("重试") { Task { await reload() } } } }
             if busy { ProgressView("正在连接工作区…") }
@@ -55,18 +71,18 @@ struct WorkspaceView: View {
                     busy=true; defer { busy=false }
                     let data=try await LocalDocumentReader.read(url)
                     let target=path.isEmpty ? url.lastPathComponent : path+"/"+url.lastPathComponent
-                    try await api.workspaceWrite(store.settings,path:target,data:data,etag:nil)
+                    try await api.workspaceWrite(settings,path:target,data:data,etag:nil,projectID:project.id)
                     await reload()
                 } catch { self.error=error.localizedDescription }
             }
         }
         .sheet(item:$selected,onDismiss:{ Task { await reload() } }) { item in
-            NavigationStack { WorkspaceDocument(entry:item,settings:store.settings) }
+            NavigationStack { WorkspaceDocument(entry:item,settings:settings,projectID:project.id) }
         }
     }
     @MainActor private func reload() async {
         busy=true; defer { busy=false }
-        do { listing=try await api.workspaceList(store.settings,path:path); error=nil }
+        do { listing=try await api.workspaceList(settings,path:path,projectID:project.id); error=nil }
         catch { self.error=error.localizedDescription; listing=nil }
     }
 }
@@ -74,6 +90,7 @@ struct WorkspaceView: View {
 struct WorkspaceDocument: View {
     let entry: WorkspaceEntry
     let settings: ConnectionSettings
+    var projectID: String? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var localURL: URL?
     @State private var directory: URL?
@@ -122,7 +139,7 @@ struct WorkspaceDocument: View {
     }
     @MainActor private func load() async {
         do {
-            let result=try await api.workspaceRead(settings,path:entry.path)
+            let result=try await api.workspaceRead(settings,path:entry.path,projectID:projectID)
             if isText {
                 guard let decoded=String(data:result.data,encoding:.utf8) else { throw ClientError.message("不是 UTF-8 文本，不能编辑。") }
                 text=decoded; original=decoded
@@ -138,7 +155,7 @@ struct WorkspaceDocument: View {
     @MainActor private func save() async {
         guard let etag else { return }; saving=true; defer { saving=false }
         do {
-            try await api.workspaceWrite(settings,path:entry.path,data:Data(text.utf8),etag:etag)
+            try await api.workspaceWrite(settings,path:entry.path,data:Data(text.utf8),etag:etag,projectID:projectID)
             editing=false; await load()
         } catch { self.error=error.localizedDescription }
     }

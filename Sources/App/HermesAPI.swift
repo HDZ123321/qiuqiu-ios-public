@@ -42,29 +42,33 @@ final class HermesAPI {
         guard let http = response as? HTTPURLResponse else { throw ClientError.message("无效 HTTP 响应。") }
         guard (200..<300).contains(http.statusCode) else { throw HTTPFailure(status: http.statusCode) }
     }
-    private func workspaceRequest(_ settings: ConnectionSettings, path: String, content: Bool) throws -> URLRequest {
+    private func workspaceRequest(_ settings: ConnectionSettings, path: String, content: Bool, projectID: String? = nil) throws -> URLRequest {
         if !path.isEmpty { try WorkspacePath.validate(path) }
         var req = try request(content ? "workspace/content" : "workspace", settings: settings)
         var url = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)!
         url.queryItems = [URLQueryItem(name: "path", value: path)]
+        if let projectID, projectID != "default" {
+            try WorkspaceProject(id:projectID,name:"Project").validate()
+            url.queryItems?.append(URLQueryItem(name:"project",value:projectID))
+        }
         req.url = url.url
         req.timeoutInterval = 45
         return req
     }
-    func workspaceList(_ settings: ConnectionSettings, path: String) async throws -> WorkspaceListing {
-        let (data,response) = try await session.data(for: workspaceRequest(settings,path:path,content:false))
+    func workspaceList(_ settings: ConnectionSettings, path: String, projectID: String? = nil) async throws -> WorkspaceListing {
+        let (data,response) = try await session.data(for: workspaceRequest(settings,path:path,content:false,projectID:projectID))
         try validate(response)
         return try JSONDecoder().decode(WorkspaceListing.self,from:data)
     }
-    func workspaceRead(_ settings: ConnectionSettings, path: String) async throws -> (data: Data, etag: String) {
-        let (data,response) = try await session.data(for: workspaceRequest(settings,path:path,content:true))
+    func workspaceRead(_ settings: ConnectionSettings, path: String, projectID: String? = nil) async throws -> (data: Data, etag: String) {
+        let (data,response) = try await session.data(for: workspaceRequest(settings,path:path,content:true,projectID:projectID))
         try validate(response)
         guard data.count <= 4*1024*1024, let etag=(response as? HTTPURLResponse)?.value(forHTTPHeaderField:"ETag") else { throw ClientError.message("文件过大或缺少版本标识。") }
         return (data,etag)
     }
-    func workspaceWrite(_ settings: ConnectionSettings, path: String, data: Data, etag: String?) async throws {
+    func workspaceWrite(_ settings: ConnectionSettings, path: String, data: Data, etag: String?, projectID: String? = nil) async throws {
         guard data.count <= 4*1024*1024 else { throw ClientError.message("文件上限为 4 MB。") }
-        var req = try workspaceRequest(settings,path:path,content:true)
+        var req = try workspaceRequest(settings,path:path,content:true,projectID:projectID)
         req.httpMethod = etag == nil ? "POST" : "PUT"; req.httpBody = data
         req.setValue("application/octet-stream",forHTTPHeaderField:"Content-Type")
         if let etag { req.setValue(etag,forHTTPHeaderField:"If-Match") }
@@ -73,10 +77,27 @@ final class HermesAPI {
         do {
             let (_,response) = try await session.data(for:req)
             try validate(response)
-            let verified = try await workspaceRead(settings,path:path)
+            let verified = try await workspaceRead(settings,path:path,projectID:projectID)
             guard verified.data == data else { throw ClientError.message("上传回读核实失败。") }
             DiagnosticLog.shared.record(.uploadVerified,id:id,status:(response as? HTTPURLResponse)?.statusCode)
         } catch { DiagnosticLog.shared.record(.uploadFailed,id:id,code:(error as NSError).code); throw error }
+    }
+    func workspaceProjects(_ settings: ConnectionSettings) async throws -> [WorkspaceProject] {
+        struct Page: Decodable { let items: [WorkspaceProject] }
+        let data=try await runRequest(settings,path:"app/projects")
+        let items=try JSONDecoder().decode(Page.self,from:data).items
+        guard items.count <= 101, Set(items.map(\.id)).count == items.count else { throw ClientError.message("项目列表无效。") }
+        for item in items { try item.validate() }
+        return items
+    }
+    func createWorkspaceProject(_ settings: ConnectionSettings, name: String) async throws -> WorkspaceProject {
+        let body=try JSONSerialization.data(withJSONObject:["name":name])
+        let data=try await runRequest(settings,path:"app/projects",method:"POST",body:body)
+        let item=try JSONDecoder().decode(WorkspaceProject.self,from:data)
+        try item.validate()
+        let readback=try await workspaceProjects(settings)
+        guard readback.contains(item) else { throw ClientError.message("项目已提交，但回读未确认；请刷新后选择，勿重复创建。") }
+        return item
     }
     func replyArtifacts(_ settings: ConnectionSettings, runID: String) async throws -> [ReplyArtifact] {
         try validateRunID(runID)

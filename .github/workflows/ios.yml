@@ -2,6 +2,10 @@ name: Public source iOS candidate
 on:
   workflow_dispatch:
     inputs:
+      projects_only:
+        description: 'Targeted app-managed project binding UI gate'
+        type: boolean
+        default: false
       settings_only:
         description: 'Targeted pending-run settings editing regression'
         type: boolean
@@ -41,7 +45,7 @@ jobs:
           export QIU_HERMES_SOURCE="$RUNNER_TEMP/native-hermes"
           mkdir -p evidence
           python scripts/verify_native_approval.py 2>&1 | tee evidence/native-approval.log
-          for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron artifacts artifact_http generated_delivery; do
+          for test in workspace proxy attachments stop_safety run_history sessions profile_sessions session_sync cron artifacts artifact_http generated_delivery projects project_http; do
             python "scripts/test_${test}.py" 2>&1 | tee "evidence/backend-${test}.log"
           done
       - name: Swift regression with loopback SSE fixture only
@@ -55,7 +59,7 @@ jobs:
           export no_proxy=127.0.0.1,localhost
           curl --noproxy '*' --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 1 --connect-timeout 2 --max-time 3 http://127.0.0.1:18765/ready > /dev/null
           if [ "${{ inputs.core_only }}" = true ]; then
-            swift test --filter 'ConversationFilesTests|QuotationTests|VoiceInputTests|RunTests' 2>&1 | tee evidence/swift-test.log
+            swift test --filter 'ProjectTests|ConversationFilesTests|QuotationTests|VoiceInputTests|RunTests' 2>&1 | tee evidence/swift-test.log
           elif [ "${{ inputs.typography_only }}" = true ]; then
             swift test --filter 'MessageTypographyTests|ReplyPresentationTests' 2>&1 | tee evidence/swift-test.log
           else
@@ -95,6 +99,11 @@ jobs:
           if [ "${{ inputs.settings_only }}" = true ]; then
             EXTRA="-only-testing:QiuQiuUITests/CompanionUITests/testPendingRunConnectionFieldsAcceptIndependentEdits"
           fi
+          if [ "${{ inputs.projects_only }}" = true ]; then
+            EXTRA="-only-testing:QiuQiuUITests/CompanionUITests/testProjectSwitchBindsChatAndFilesWithoutMixing -only-testing:QiuQiuUITests/CompanionUITests/testProjectCreationAndPendingBlockDarkLargeText"
+          elif [ "${{ inputs.settings_only }}" != true ]; then
+            EXTRA="$EXTRA -only-testing:QiuQiuUITests/CompanionUITests/testProjectSwitchBindsChatAndFilesWithoutMixing -only-testing:QiuQiuUITests/CompanionUITests/testProjectCreationAndPendingBlockDarkLargeText"
+          fi
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
         if: ${{ !inputs.core_only }}
@@ -107,11 +116,11 @@ jobs:
           xcrun lipo "$APP/QiuQiu" -verify_arch arm64
           xcrun vtool -show-build "$APP/QiuQiu" | tee -a evidence/binary-info.txt
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | tee evidence/bundle-id.txt
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 20
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = 21
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = org.hermesclient.qiuqiu
           if codesign -d "$APP" 2>/dev/null; then exit 1; fi
-          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build20-unsigned.ipa Payload)
-          shasum -a 256 build/QiuQiu-Build20-unsigned.ipa | tee evidence/SHA256SUMS
+          (cd build/package && /usr/bin/zip -qry ../QiuQiu-Build21-unsigned.ipa Payload)
+          shasum -a 256 build/QiuQiu-Build21-unsigned.ipa | tee evidence/SHA256SUMS
       - name: Export screenshots and metadata on every outcome
         if: always()
         run: |
@@ -130,9 +139,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !inputs.core_only }}
         with:
-          name: QiuQiu-Build20-unsigned-ipa
+          name: QiuQiu-Build21-unsigned-ipa
           path: |
-            build/QiuQiu-Build20-unsigned.ipa
+            build/QiuQiu-Build21-unsigned.ipa
             evidence/SHA256SUMS
             evidence/binary-info.txt
           if-no-files-found: error
