@@ -56,6 +56,32 @@ final class CompanionUITests: XCTestCase {
             screenshot("share-host-import-durable-draft-no-send")
         }
     }
+    func testIsolatedInboxTargetCancelImportDraftAndBusyNoOverwrite() {
+        let app = XCUIApplication()
+        for dark in [false, true] {
+            app.launchArguments = ["--ui-history", "--ui-share-isolated", "--ui-share-reset"] + (dark ? ["--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"] : [])
+            app.launch(); app.tabBars.buttons["我的"].tap(); app.buttons["分享收件箱"].tap()
+            let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'share-item-'")).firstMatch
+            for _ in 0..<5 { if row.exists && row.isHittable { break }; app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(row.waitForExistence(timeout: 5)); row.tap()
+            let importButton = app.buttons["share-import-draft"]
+            XCTAssertTrue(app.staticTexts["External synthetic share text · not sent"].waitForExistence(timeout: 5))
+            screenshot(dark ? "share-isolated-preview-dark-large" : "share-isolated-preview-light")
+            app.buttons["取消"].tap()
+            XCTAssertTrue(row.exists); row.tap()
+            let list = app.collectionViews.element(boundBy: app.collectionViews.count-1)
+            for _ in 0..<7 { if importButton.exists && importButton.isHittable { break }; list.swipeUp() }
+            XCTAssertTrue(importButton.exists); importButton.tap()
+            XCTAssertTrue(app.staticTexts["share-imported"].waitForExistence(timeout: 5))
+            screenshot(dark ? "share-isolated-durable-import-dark-large" : "share-isolated-durable-import-light")
+            app.buttons["查看草稿"].tap()
+            let disclosure = app.buttons["外部分享草稿 · 尚未发送"]
+            XCTAssertTrue(disclosure.waitForExistence(timeout: 5)); disclosure.tap()
+            XCTAssertTrue(app.textFields["share-draft-text"].waitForExistence(timeout: 5))
+            screenshot(dark ? "share-isolated-editable-draft-dark-large" : "share-isolated-editable-draft-light")
+            app.terminate()
+        }
+    }
     func testShareCapabilityAndInboxCancelDarkLargeText() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-history", "--ui-dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]

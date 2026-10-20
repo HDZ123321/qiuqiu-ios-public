@@ -44,7 +44,13 @@ struct ShareInboxView: View {
         do {
             if inbox == nil { inbox = try ShareContainer.open() }
             items = try inbox?.list() ?? []
+            #if DEBUG && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--ui-share-isolated") {
+                capability = "隔离 UI 测试收件箱（非 App Group 能力证明）"
+            } else { capability = "支持：当前 App 的共享容器已通过一次性读写验证。" }
+            #else
             capability = "支持：当前 App 的共享容器已通过一次性读写验证。"
+            #endif
             error = nil
         } catch { capability = "不支持或不可用："+error.localizedDescription; self.error = nil; items = [] }
     }
@@ -94,7 +100,7 @@ private struct ShareImportView: View {
             project = store.chats.first(where: { $0.id == id })?.workspaceProject ?? .defaultProject
             if !projects.contains(where: { $0.id == project.id }) { projects.append(project) }
         }
-        .onAppear { scope = ServerSessionImport.scope(store.settings) }
+        .onAppear { if scope == nil { scope = ServerSessionImport.scope(store.settings) } }
     }
     @MainActor private func loadProjects() async {
             let configuration = store.settings

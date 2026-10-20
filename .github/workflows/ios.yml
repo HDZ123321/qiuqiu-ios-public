@@ -109,9 +109,9 @@ jobs:
             EXTRA="$EXTRA -only-testing:QiuQiuUITests/CompanionUITests/testProjectSwitchBindsChatAndFilesWithoutMixing -only-testing:QiuQiuUITests/CompanionUITests/testProjectCreationAndPendingBlockDarkLargeText"
           fi
           if [ "${{ inputs.share_only }}" = true ]; then
-            EXTRA="-only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testNativeSystemShareExtensionPreviewManualSaveAndHostDraft -only-testing:QiuQiuUITests/CompanionUITests/testShareCapabilityAndInboxCancelDarkLargeText"
+            EXTRA="-only-testing:QiuQiuPhotoTests -only-testing:QiuQiuUITests/CompanionUITests/testNativeSystemShareExtensionPreviewManualSaveAndHostDraft -only-testing:QiuQiuUITests/CompanionUITests/testShareCapabilityAndInboxCancelDarkLargeText -only-testing:QiuQiuUITests/CompanionUITests/testIsolatedInboxTargetCancelImportDraftAndBusyNoOverwrite"
           else
-            EXTRA="$EXTRA -only-testing:QiuQiuUITests/CompanionUITests/testNativeSystemShareExtensionPreviewManualSaveAndHostDraft -only-testing:QiuQiuUITests/CompanionUITests/testShareCapabilityAndInboxCancelDarkLargeText"
+            EXTRA="$EXTRA -only-testing:QiuQiuUITests/CompanionUITests/testNativeSystemShareExtensionPreviewManualSaveAndHostDraft -only-testing:QiuQiuUITests/CompanionUITests/testShareCapabilityAndInboxCancelDarkLargeText -only-testing:QiuQiuUITests/CompanionUITests/testIsolatedInboxTargetCancelImportDraftAndBusyNoOverwrite"
           fi
           xcodebuild -project QiuQiu.xcodeproj -scheme QiuQiu -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath simulator-build -resultBundlePath evidence/ui-results.xcresult CODE_SIGNING_ALLOWED=NO $EXTRA test 2>&1 | tee evidence/ui-test.log
       - name: Package and verify IPA
