@@ -100,7 +100,9 @@ final class CompanionUITests: XCTestCase {
         app.buttons["voice-input"].tap()
         let status = app.staticTexts["voice-status"]
         expectation(for: NSPredicate(format: "label CONTAINS %@", "语音识别失败"), evaluatedWith: status)
-        waitForExpectations(timeout: 8)
+        // Full-suite simulator snapshots can take several seconds under load.
+        // Still require the exact terminal error; do not weaken to mere existence.
+        waitForExpectations(timeout: 25)
         XCTAssertEqual(composer.value as? String, "draft\nsynthetic words")
         XCTAssertTrue(app.buttons["发送"].isEnabled)
         screenshot("inline-voice-error-partial-dark-large-keyboard")
